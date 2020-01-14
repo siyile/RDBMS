@@ -7,6 +7,7 @@ typedef int RC;
 #define PAGE_SIZE 4096
 
 #include <string>
+#include <fstream>
 
 class FileHandle;
 
@@ -24,7 +25,6 @@ protected:
     ~PagedFileManager();                                                // Prevent unwanted destruction
     PagedFileManager(const PagedFileManager &);                         // Prevent construction by copying
     PagedFileManager &operator=(const PagedFileManager &);              // Prevent assignment
-
 };
 
 class FileHandle {
@@ -34,6 +34,9 @@ public:
     unsigned writePageCounter;
     unsigned appendPageCounter;
     std::string id;
+
+    std::fstream fs;
+    std::string fileName;
 
     FileHandle();                                                       // Default constructor
     ~FileHandle();                                                      // Destructor
