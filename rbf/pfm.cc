@@ -38,30 +38,23 @@ RC PagedFileManager::destroyFile(const std::string &fileName) {
     return result;
 }
 
-std::unordered_map<FileHandle, std::string> umap;
-
 RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-    if (exists_test(fileName)) {
+    if (!exists_test(fileName)) {
         return -1;
     } else {
-        if (umap.find(fileHandle)) {
-            return -1;
-        } else {
-            umap.insert(make_pair(fileHandle, fileName));
-            std::fstream fs;
-            fs.open (fileName, std::fstream::in | std::fstream::out | std::fstream::app);
-//            fs.close();
-        }
+        fileHandle.fileName = fileName;
+        fileHandle.fs.open(fileName);
     }
     return 0;
 }
 
 RC PagedFileManager::closeFile(FileHandle &fileHandle) {
-    if (umap.find(fileHandle)) {
-
-
+    if (fileHandle.fs.is_open()) {
+        fileHandle.fs.close();
+    } else {
+        return -1;
     }
-    return -1;
+    return 0;
 }
 
 FileHandle::FileHandle() {
