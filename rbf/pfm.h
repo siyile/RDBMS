@@ -33,6 +33,7 @@ public:
     unsigned readPageCounter;
     unsigned writePageCounter;
     unsigned appendPageCounter;
+    std::string id;
 
     FileHandle();                                                       // Default constructor
     ~FileHandle();                                                      // Destructor
