@@ -27,7 +27,11 @@ RC PagedFileManager::createFile(const std::string &fileName) {
     if (exists_test(fileName)) {
         return -1;
     } else {
-        std::ofstream outfile(fileName);
+        std::fstream outfile(fileName, std::ios::out | std::ios::binary);
+        unsigned x = 0;
+        for (int i = 0; i < 3; i++) {
+            outfile.write(reinterpret_cast<const char *>(&x), sizeof(x));
+        }
         outfile.close();
     }
     return 0;
@@ -44,12 +48,19 @@ RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandl
     } else {
         fileHandle.fileName = fileName;
         fileHandle.fs.open(fileName, std::ios::in | std::ios::out | std::ios::binary);
+        if (fileHandle.fs.is_open()) {
+            fileHandle.phyReadCounterValues();
+        } else {
+            return -1;
+        }
+        return 0;
     }
-    return 0;
 }
 
 RC PagedFileManager::closeFile(FileHandle &fileHandle) {
     if (fileHandle.fs.is_open()) {
+        fileHandle.phyWriteCounterValues();
+        fileHandle.fs << std::flush;
         fileHandle.fs.close();
     } else {
         return -1;
@@ -58,88 +69,78 @@ RC PagedFileManager::closeFile(FileHandle &fileHandle) {
 }
 
 FileHandle::FileHandle() {
-    readPageCounter = 0;
-    writePageCounter = 0;
-    appendPageCounter = 0;
-    totalPageCounter = 0;
 }
 
 FileHandle::~FileHandle() = default;
 
 RC FileHandle::readPage(PageNum pageNum, void *data) {
-    unsigned rpc, wpc, apc;
-    collectCounterValues(rpc, wpc, apc);
-    if (this->fs.is_open() && (pageNum + 1 <=  totalPageCounter)) {
-        this->fs.seekg ((pageNum + 1) * PAGE_SIZE, std::ios::beg);
-        this->fs.read(static_cast<char *>(data), PAGE_SIZE);
+    if (fs.is_open() && (pageNum + 1 <=  totalPageCounter)) {
+        fs.seekg ((pageNum + 1) * PAGE_SIZE, std::ios::beg);
+        fs.read(static_cast<char *>(data), PAGE_SIZE);
     } else {
         return -1;
     }
     readPageCounter = readPageCounter + 1;
-    phyWriteCounterValues();
     return 0;
 }
 
 RC FileHandle::writePage(PageNum pageNum, const void *data) {
-    unsigned rpc, wpc, apc;
-    collectCounterValues(rpc, wpc, apc);
-    if (this->fs.is_open() && (pageNum + 1 <=  totalPageCounter)) {
-        this->fs.seekp ((pageNum + 1) * PAGE_SIZE, std::ios::beg);
-        this->fs.write(reinterpret_cast<const char *>(data), PAGE_SIZE);
+    if (fs.is_open() && (pageNum + 1 <=  totalPageCounter)) {
+        fs.seekp ((pageNum + 1) * PAGE_SIZE, std::ios::beg);
+        fs.write(reinterpret_cast<const char *>(data), PAGE_SIZE);
     } else {
         return -1;
     }
     writePageCounter = writePageCounter + 1;
-    phyWriteCounterValues();
     return 0;
 }
 
 RC FileHandle::appendPage(const void *data) {
-    unsigned rpc, wpc, apc;
-    collectCounterValues(rpc, wpc, apc);
-    if (this->fs.is_open()) {
-        this->fs.seekp ((totalPageCounter + 1) * PAGE_SIZE, std::ios::beg);
-        this->fs.write(reinterpret_cast<const char *>(data), PAGE_SIZE);
+    if (fs.is_open()) {
+        fs.seekp ((totalPageCounter + 1) * PAGE_SIZE);
+        fs.write(reinterpret_cast<const char *>(data), PAGE_SIZE);
     } else {
         return -1;
     }
     appendPageCounter = appendPageCounter + 1;
-    phyWriteCounterValues();
+    totalPageCounter = appendPageCounter;
     return 0;
 }
 
 unsigned FileHandle::getNumberOfPages() {
-    unsigned rpc, wpc, apc;
-    collectCounterValues(rpc, wpc, apc);
     return totalPageCounter;
 }
 
 RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
-    this->fs.seekg (0, std::ios::beg);
-    this->fs.read(reinterpret_cast<char *>(&readPageCount), sizeof(readPageCount));
-    this->fs.read(reinterpret_cast<char *>(&writePageCount), sizeof(writePageCount));
-    this->fs.read(reinterpret_cast<char *>(&appendPageCount), sizeof(appendPageCount));
+    readPageCount = readPageCounter;
+    writePageCount = writePageCounter;
+    appendPageCount = appendPageCounter;
 
-//    std::cout << readPageCount << writePageCount << appendPageCount << std::endl;
-
-    this->readPageCounter = readPageCount;
-    this->writePageCounter = writePageCount;
-    this->appendPageCounter = appendPageCount;
-    this->totalPageCounter = appendPageCount;
-
-
-//    readPageCounter = readPageCount;
-//    writePageCounter = writePageCount;
-//    appendPageCounter = appendPageCount;
     return 0;
 }
 
 RC FileHandle::phyWriteCounterValues() {
-    this->fs.seekp (0, std::ios::beg);
-    std::cout << readPageCounter << writePageCounter << appendPageCounter << std::endl;
-    this->fs.write(reinterpret_cast<const char *>(&readPageCounter), sizeof(readPageCounter));
-    this->fs.write(reinterpret_cast<const char *>(&writePageCounter), sizeof(writePageCounter));
-    this->fs.write(reinterpret_cast<const char *>(&appendPageCounter), sizeof(appendPageCounter));
-    return -1;
+    if (fs.is_open()) {
+        fs.seekp (0, std::ios::beg);
+//        std::cout << "write " << readPageCounter << writePageCounter << appendPageCounter << std::endl;
+        fs.write(reinterpret_cast<const char *>(&readPageCounter), sizeof(readPageCounter));
+        fs.write(reinterpret_cast<const char *>(&writePageCounter), sizeof(writePageCounter));
+        fs.write(reinterpret_cast<const char *>(&appendPageCounter), sizeof(appendPageCounter));
+    } else {
+        return -1;
+    }
+
+    return 0;
 }
+
+RC FileHandle::phyReadCounterValues() {
+    fs.seekg (0, std::ios::beg);
+    fs.read(reinterpret_cast<char *>(&readPageCounter), sizeof(readPageCounter));
+    fs.read(reinterpret_cast<char *>(&writePageCounter), sizeof(writePageCounter));
+    fs.read(reinterpret_cast<char *>(&appendPageCounter), sizeof(appendPageCounter));
+    totalPageCounter = appendPageCounter;
+
+//    std::cout << "read " << readPageCounter << writePageCounter << appendPageCounter << std::endl;
+};
+
 

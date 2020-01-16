@@ -34,7 +34,6 @@ public:
     unsigned writePageCounter;
     unsigned appendPageCounter;
     unsigned totalPageCounter;
-    std::string id;
 
     std::fstream fs;
     std::string fileName;
@@ -49,6 +48,7 @@ public:
     RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount,
                             unsigned &appendPageCount);                 // Put current counter values into variables
     RC phyWriteCounterValues();
+    RC phyReadCounterValues();
 };
 
 #endif
