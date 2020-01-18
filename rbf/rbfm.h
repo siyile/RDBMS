@@ -3,6 +3,10 @@
 
 #include "pfm.h"
 
+#define F_POS 4092
+#define N_POS 4088
+#define DICT_SIZE 8
+
 // Record ID
 typedef struct {
     unsigned pageNum;    // page number
@@ -127,6 +131,24 @@ public:
             const void *value,                    // used in the comparison
             const std::vector<std::string> &attributeNames, // a list of projected attributes
             RBFM_ScanIterator &rbfm_ScanIterator);
+
+    unsigned getFreeSpace(FileHandle &fileHandle, unsigned pageNum);
+
+    unsigned getSlotNum(FileHandle &fileHandle, unsigned pageNum);
+
+    // return -1 for none space remain, otherwise the page can insert
+    int scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed);
+
+    // write FreeSpace & SlotNum into new page
+    unsigned initiateNewPage(FileHandle &fileHandle, unsigned newPageNum);
+
+    unsigned setSlot(FileHandle &fileHandle, unsigned newSlot);
+
+    unsigned setSpace(FileHandle &fileHandle, unsigned newSpace);
+
+    unsigned getDateSize(const void *data, const std::vector<Attribute> &recordDescriptor);
+
+    RC insertRecordIntoPage(FileHandle &fileHandle, unsigned targetPage, unsigned dataSize);
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction
