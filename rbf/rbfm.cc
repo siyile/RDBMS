@@ -78,8 +78,8 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
     unsigned pageNum = rid.pageNum;
     unsigned slotNum = rid.slotNum;
 
-    void *pageData = nullptr;
-    fileHandle.readPage(pageNum, data);
+    void *pageData = malloc(PAGE_SIZE);
+    fileHandle.readPage(pageNum, pageData);
 
     unsigned offset;
     unsigned length;
@@ -87,6 +87,8 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
     getOffsetAndLength(pageData, slotNum, offset, length);
 
     memcpy(data, (char *) pageData + offset, length);
+
+    free(pageData);
 
     return 0;
 }
