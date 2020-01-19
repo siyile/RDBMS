@@ -189,11 +189,11 @@ unsigned RecordBasedFileManager::initiateNewPage(FileHandle &fileHandle) {
 }
 
 void RecordBasedFileManager::setSlot(void *pageData, unsigned SlotNum) {
-
+    memcpy((char *) pageData + N_POS, (char *) SlotNum, UNSIGNED_SIZE);
 }
 
 void RecordBasedFileManager::setSpace(void *pageData, unsigned freeSpace) {
-
+    memcpy((char *) pageData + N_POS, (char *) freeSpace, UNSIGNED_SIZE);
 }
 
 unsigned RecordBasedFileManager::getRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor) {
@@ -229,7 +229,23 @@ bool getBit(unsigned char byte, int position) // position in range 0-7
 
 RC
 RecordBasedFileManager::insertRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize, const void *data) {
+    unsigned freeSpace = getFreeSpace(fileHandle, pageIdx);
+    unsigned slotNum = getSlotNum(fileHandle, pageIdx);
 
+    void *pageData = nullptr;
+    fileHandle.readPage(pageIdx, pageData);
+
+    unsigned offset = getInsertOffset(pageData, slotNum);
+    writeData(pageData, data, offset, dataSize);
+
+    slotNum++;
+    freeSpace += - dataSize - DICT_SIZE;
+
+    setSlot(pageData, slotNum);
+    setSpace(pageData, freeSpace);
+    setOffsetAndLength(pageData, offset, dataSize, slotNum);
+
+    fileHandle.writePage(pageIdx, pageData);
 }
 
 void
@@ -252,15 +268,30 @@ RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const v
 }
 
 unsigned RecordBasedFileManager::getInsertOffset(void *data, unsigned slotNum) {
+    unsigned pos = PAGE_SIZE - 2 * UNSIGNED_SIZE - slotNum * DICT_SIZE;
 
+    unsigned lastOffset;
+    memcpy(&lastOffset, (char *) data + pos, UNSIGNED_SIZE);
+
+    pos += UNSIGNED_SIZE;
+    unsigned lastLength;
+    memcpy(&lastLength, (char *) data + pos, UNSIGNED_SIZE);
+
+    unsigned offset = lastOffset + lastLength;
+
+    return offset;
 }
 
 void RecordBasedFileManager::writeData(void *pageData, const void *data, unsigned offset, unsigned length) {
-
+    memcpy((char *) pageData + offset, (char *)data, length);
 }
 
 void RecordBasedFileManager::setOffsetAndLength(void *data, unsigned offset, unsigned length, unsigned slotNum) {
+    unsigned pos = PAGE_SIZE - 2 * UNSIGNED_SIZE - DICT_SIZE * slotNum;
 
+    memcpy((char *) data + pos, (char *) &offset, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+    memcpy((char *) data + pos, (char *) &length, UNSIGNED_SIZE);
 }
 
 void RecordBasedFileManager::getOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length) {
