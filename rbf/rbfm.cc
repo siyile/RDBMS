@@ -251,8 +251,8 @@ RecordBasedFileManager::insertRecordIntoPage(FileHandle &fileHandle, unsigned pa
 void
 RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize) {
     unsigned nullIndicatorSize = (attrSize + 7) / 8;
-    char *block = nullptr;
-    memcpy(block, data, nullIndicatorSize);
+    char *block = new char[nullIndicatorSize];
+    memcpy(block, (char *) data, nullIndicatorSize);
     int idx = 0;
     for (int i = 0; i < nullIndicatorSize; i++) {
         for (int j = 0; j < 8 && idx < attrSize; j++) {
