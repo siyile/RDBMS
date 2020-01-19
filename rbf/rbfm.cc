@@ -1,4 +1,8 @@
+#include <vector>
+#include <cstring>
 #include "rbfm.h"
+#include <cmath>
+#include <iostream>
 
 RecordBasedFileManager &RecordBasedFileManager::instance() {
     static RecordBasedFileManager _rbf_manager = RecordBasedFileManager();
@@ -33,43 +37,58 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
                                         const void *data, RID &rid) {
     unsigned pageNum = fileHandle.getNumberOfPages();
     unsigned curPage = pageNum - 1;
-    char * voidPage;
-    unsigned dataSize = getDateSize(data, recordDescriptor);
+    unsigned dataSize = getRecordSize(data, recordDescriptor);
     unsigned spaceNeed = dataSize + DICT_SIZE;
-    voidPage = (char *) malloc(PAGE_SIZE);
     unsigned targetPage;
 
     // find target page to insert
     if (pageNum == 0) {
-        initiateNewPage(fileHandle, 0);
+        initiateNewPage(fileHandle);
         targetPage = 0;
     } else {
-        // cur fit
         if (getFreeSpace(fileHandle, curPage) <= spaceNeed) {
+            // current page have enough space
             targetPage = curPage;
         } else {
             // scan
             int scannedPage = scanFreeSpace(fileHandle, curPage, spaceNeed);
-            // not enough space
             if (scannedPage == -1) {
-                initiateNewPage(fileHandle, 0);
-                targetPage = curPage + 1;
+                // not enough space
+                initiateNewPage(fileHandle);
+                curPage++;
+                targetPage = curPage;
             } else {
+                // find target page
                 targetPage = scannedPage;
             }
         }
     }
 
     // insertRecordIntoPage
-    insertRecordIntoPage(fileHandle, targetPage, dataSize);
+    insertRecordIntoPage(fileHandle, targetPage, dataSize, data);
 
+    rid.pageNum = targetPage;
+    rid.slotNum = getSlotNum(fileHandle, targetPage);
 
-    return -1;
+    return 0;
 }
 
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                       const RID &rid, void *data) {
-    return -1;
+    unsigned pageNum = rid.pageNum;
+    unsigned slotNum = rid.slotNum;
+
+    void *pageData = nullptr;
+    fileHandle.readPage(pageNum, data);
+
+    unsigned offset;
+    unsigned length;
+
+    getOffsetAndLength(pageData, slotNum, offset, length);
+
+    memcpy(data, (char *) pageData + offset, length);
+
+    return 0;
 }
 
 RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -78,7 +97,43 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
 }
 
 RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data) {
-    return -1;
+    unsigned size = recordDescriptor.size();
+    unsigned pos = 0;
+
+    int *attrsExist = new int[size];
+    getAttrExistArray(pos, attrsExist, data, size);
+
+    auto *value = static_cast<char *>(malloc(PAGE_SIZE));
+
+    for (int i = 0; i < size; i++) {
+        Attribute attr = recordDescriptor[i];
+        std::cout << attr.name << ": ";
+        bool exist = attrsExist[i];
+        if (exist) {
+            if (attr.type == TypeInt || attr.type == TypeReal) {
+                memcpy(value, (char *) data + pos, INT_SIZE);
+                std::cout.write(value, INT_SIZE);
+                pos += INT_SIZE;
+            } else {
+                // type == TypeVarChar
+                unsigned charLength;
+                memcpy(&charLength, (char *) data + pos, INT_SIZE);
+                pos += INT_SIZE;
+                memcpy(value, (char *) data + pos, charLength);
+                std::cout.write(value, charLength);
+                pos += charLength;
+            }
+        } else {
+            std::cout << "NULL";
+        }
+        if (i != size - 1) {
+            std::cout << " ";
+        }
+    }
+
+    free(value);
+
+    return 0;
 }
 
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -98,47 +153,121 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attrib
 }
 
 unsigned RecordBasedFileManager::getFreeSpace(FileHandle &fileHandle, unsigned pageNum) {
-    fileHandle.fs.seekg(pageNum * PAGE_SIZE + F_POS, std::ios::beg);
-    unsigned freeSpaceNum;
-    fileHandle.fs.read(reinterpret_cast<char *>(&freeSpaceNum), sizeof(freeSpaceNum));
-    return freeSpaceNum;
+    char *data = nullptr;
+    fileHandle.readPage(pageNum, data);
+    unsigned freeSpace;
+    memcpy(&freeSpace, data + F_POS, sizeof(unsigned));
+    return freeSpace;
 }
 
 unsigned RecordBasedFileManager::getSlotNum(FileHandle &fileHandle, unsigned pageNum) {
-    fileHandle.fs.seekg(pageNum * N_POS, std::ios::beg);
-    unsigned SlotNum;
-    fileHandle.fs.read(reinterpret_cast<char *>(&SlotNum), sizeof(SlotNum));
-    return SlotNum;
+    char *data = nullptr;
+    fileHandle.readPage(pageNum, data);
+    unsigned slotNum;
+    memcpy(&slotNum, data + N_POS, sizeof(unsigned));
+    return slotNum;
 }
 
 int RecordBasedFileManager::scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed) {
     for (int i = 0; i < curPageNum; i++) {
-        if (sizeNeed <= getSlotNum(fileHandle, i)) {
+        if (sizeNeed <= getFreeSpace(fileHandle, i)) {
             return i;
         }
     }
     return -1;
 }
 
-unsigned RecordBasedFileManager::initiateNewPage(FileHandle &fileHandle, unsigned newPageNum) {
-    fileHandle.fs.seekg()
+unsigned RecordBasedFileManager::initiateNewPage(FileHandle &fileHandle) {
+    auto *data = static_cast<unsigned int *>(malloc(PAGE_SIZE));
+    *(data + F_POS / sizeof(unsigned)) = INIT_FREE_SPACE;
+    *(data + N_POS / sizeof(unsigned)) = 0;
+
+    fileHandle.appendPage(data);
+    free(data);
+
     return 0;
 }
 
-unsigned RecordBasedFileManager::setSlot(FileHandle &fileHandle, unsigned newSlot) {
-    return 0;
+void RecordBasedFileManager::setSlot(void *pageData, unsigned SlotNum) {
+
 }
 
-unsigned RecordBasedFileManager::setSpace(FileHandle &fileHandle, unsigned newSpace) {
-    return 0;
+void RecordBasedFileManager::setSpace(void *pageData, unsigned freeSpace) {
+
 }
 
-unsigned RecordBasedFileManager::getDateSize(const void *data, const std::vector<Attribute> &recordDescriptor) {
-    return 0;
+unsigned RecordBasedFileManager::getRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor) {
+    unsigned size = recordDescriptor.size();
+    unsigned pos = 0;
+
+    int *attrsExist = new int[size];
+    getAttrExistArray(pos, attrsExist, data, size);
+
+    for (int i = 0; i < size; i++) {
+        Attribute attr = recordDescriptor[i];
+        bool exist = attrsExist[i];
+        if (exist) {
+            if (attr.type == TypeInt || attr.type == TypeReal) {
+                pos += INT_SIZE;
+            } else {
+                // type == TypeVarChar
+                unsigned charLength;
+                memcpy(&charLength, (char *) data + pos, INT_SIZE);
+                pos += INT_SIZE;
+                pos += charLength;
+            }
+        }
+    }
+
+    return pos;
 }
 
-RC RecordBasedFileManager::insertRecordIntoPage(FileHandle &fileHandle, unsigned targetPage, unsigned dataSize) {
-    return 0;
+bool getBit(unsigned char byte, int position) // position in range 0-7
+{
+    return (byte >> position) & 0x1;
+}
+
+RC
+RecordBasedFileManager::insertRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize, const void *data) {
+
+}
+
+void
+RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize) {
+    unsigned nullIndicatorSize = (attrSize + 7) / 8;
+    char *block = nullptr;
+    memcpy(block, data, nullIndicatorSize);
+    int idx = 0;
+    for (int i = 0; i < nullIndicatorSize; i++) {
+        for (int j = 0; j < 8 && idx < attrSize; j++) {
+            if (getBit(block[i], j)) {
+                attrExist[idx] = 1;
+            } else {
+                attrExist[idx] = 0;
+            }
+            idx++;
+        }
+    }
+    pos += nullIndicatorSize;
+}
+
+unsigned RecordBasedFileManager::getInsertOffset(void *data, unsigned slotNum) {
+
+}
+
+void RecordBasedFileManager::writeData(void *pageData, const void *data, unsigned offset, unsigned length) {
+
+}
+
+void RecordBasedFileManager::setOffsetAndLength(void *data, unsigned offset, unsigned length, unsigned slotNum) {
+
+}
+
+void RecordBasedFileManager::getOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length) {
+    unsigned pos = PAGE_SIZE - 2 * UNSIGNED_SIZE - slotNum * DICT_SIZE;
+    memcpy(&offset, (char *) data + pos, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+    memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
 };
 
 
