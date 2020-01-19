@@ -6,6 +6,9 @@
 #define F_POS 4092
 #define N_POS 4088
 #define DICT_SIZE 8
+#define INIT_FREE_SPACE 4088
+#define INT_SIZE 4
+#define UNSIGNED_SIZE 4
 
 // Record ID
 typedef struct {
@@ -140,15 +143,25 @@ public:
     int scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed);
 
     // write FreeSpace & SlotNum into new page
-    unsigned initiateNewPage(FileHandle &fileHandle, unsigned newPageNum);
+    unsigned initiateNewPage(FileHandle &fileHandle);
 
-    unsigned setSlot(FileHandle &fileHandle, unsigned newSlot);
+    void setSlot(void *pageData, unsigned SlotNum);
 
-    unsigned setSpace(FileHandle &fileHandle, unsigned newSpace);
+    void setSpace(void *pageData, unsigned freeSpace);
 
-    unsigned getDateSize(const void *data, const std::vector<Attribute> &recordDescriptor);
+    void getOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length);
 
-    RC insertRecordIntoPage(FileHandle &fileHandle, unsigned targetPage, unsigned dataSize);
+    void setOffsetAndLength(void *data, unsigned offset, unsigned length, unsigned slotNum);
+
+    unsigned getRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor);
+
+    void getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize);
+
+    RC insertRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize, const void *data);
+
+    unsigned getInsertOffset(void *data, unsigned slotNum);
+
+    void writeData(void *pageData, const void *data, unsigned offset, unsigned length);
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction
