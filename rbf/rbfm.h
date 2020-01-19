@@ -145,7 +145,7 @@ public:
     // write FreeSpace & SlotNum into new page
     unsigned initiateNewPage(FileHandle &fileHandle);
 
-    void setSlot(void *pageData, unsigned SlotNum);
+    void setSlot(void *pageData, unsigned slotNum);
 
     void setSpace(void *pageData, unsigned freeSpace);
 
