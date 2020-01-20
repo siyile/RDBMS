@@ -113,22 +113,21 @@ RecordBasedFileManager::convertRecordToData(void *record, void *data, const std:
     memcpy((char *) data, (char *) record + pos, nullIndicatorSize);
     destPos += nullIndicatorSize;
 
-    getAttrExistArray(pos, attrsExist, data, size, true);
+    getAttrExistArray(pos, attrsExist, record, size, true);
 
     unsigned fieldStart = pos + UNSIGNED_SIZE * size;
 
-    for (int i = 0; i < size; i++) {
+    for (unsigned i = 0; i < size; i++) {
         Attribute attr = recordDescriptor[i];
         bool exist = attrsExist[i];
         if (exist) {
             unsigned fieldEnd;
-            memcpy(&fieldEnd, (char *) data + pos, UNSIGNED_SIZE);
+            memcpy(&fieldEnd, (char *) record + pos, UNSIGNED_SIZE);
             pos += UNSIGNED_SIZE;
             unsigned recordLength = fieldEnd - fieldStart;
-            if (attr.type == TypeInt) {
+            if (attr.type == TypeInt || attr.type == TypeReal) {
                 memcpy((char *) data + destPos, (char *) record + fieldStart, UNSIGNED_SIZE);
                 destPos += INT_SIZE;
-                pos += UNSIGNED_SIZE;
             } else {
                 memcpy((char *) data + destPos, (char *) &recordLength, UNSIGNED_SIZE);
                 destPos += UNSIGNED_SIZE;
@@ -254,6 +253,7 @@ void RecordBasedFileManager::setSpace(void *pageData, unsigned freeSpace) {
     memcpy((char *) pageData + F_POS, (char *) &freeSpace, UNSIGNED_SIZE);
 }
 
+// data to record
 void RecordBasedFileManager::getRecordSizeAndFormat(const void *data, const std::vector<Attribute> &recordDescriptor,
                                                     unsigned &dataSize, void *record) {
     unsigned size = recordDescriptor.size();
@@ -264,13 +264,11 @@ void RecordBasedFileManager::getRecordSizeAndFormat(const void *data, const std:
     int *attrsExist = new int[size];
     getAttrExistArray(pos, attrsExist, data, size, false);
 
-//    record = malloc(PAGE_SIZE);
-
     // write attribute number into start position
     memcpy((char *) record, (char *) &size, UNSIGNED_SIZE);
 
     //write null flag into start position
-    memcpy((char *) record + UNSIGNED_SIZE, (char *) data, pos);
+    memcpy((char *) record + UNSIGNED_SIZE, (char *) data, nullIndicatorSize);
 
     unsigned indexOffset = UNSIGNED_SIZE + nullIndicatorSize;
     unsigned dataOffset = indexOffset + size * UNSIGNED_SIZE;
