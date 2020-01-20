@@ -8,6 +8,8 @@ typedef int RC;
 
 #include <string>
 #include <fstream>
+#include <string.h>
+#include <limits.h>
 
 class FileHandle;
 

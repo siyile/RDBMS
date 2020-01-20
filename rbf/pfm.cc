@@ -1,6 +1,5 @@
 #include "pfm.h"
 #include <iostream>
-#include <fstream>
 #include <sys/stat.h>
 #include <cstdio>
 #include <unordered_map>
