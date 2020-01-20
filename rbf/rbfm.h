@@ -2,6 +2,7 @@
 #define _rbfm_h_
 
 #include "pfm.h"
+#include <vector>
 
 #define F_POS 4092
 #define N_POS 4088
