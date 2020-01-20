@@ -38,7 +38,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     unsigned pageNum = fileHandle.getNumberOfPages();
     unsigned curPage = pageNum - 1;
     // reformat record data
-    void* recordData = nullptr;
+    void* recordData = malloc(PAGE_SIZE);
     unsigned dataSize;
     getRecordSizeAndFormat(data, recordDescriptor, dataSize, recordData);
     unsigned spaceNeed = dataSize + DICT_SIZE;
@@ -212,21 +212,22 @@ void RecordBasedFileManager::setSpace(void *pageData, unsigned freeSpace) {
 void RecordBasedFileManager::getRecordSizeAndFormat(const void *data, const std::vector<Attribute> &recordDescriptor,
                                                     unsigned &dataSize, void *record) {
     unsigned size = recordDescriptor.size();
+    unsigned nullIndicatorSize = (size + 7) / 8;
     // pos = pointer position of original data
     unsigned pos = 0;
 
     int *attrsExist = new int[size];
     getAttrExistArray(pos, attrsExist, data, size);
 
-    record = malloc(PAGE_SIZE);
+//    record = malloc(PAGE_SIZE);
 
     // write attribute number into start position
-    memcpy((char *) record, (char *) size, UNSIGNED_SIZE);
+    memcpy((char *) record, (char *) &size, UNSIGNED_SIZE);
 
     //write null flag into start position
     memcpy((char *) record + UNSIGNED_SIZE, (char *) data, pos);
 
-    unsigned indexOffset = UNSIGNED_SIZE + UNSIGNED_SIZE;
+    unsigned indexOffset = UNSIGNED_SIZE + nullIndicatorSize;
     unsigned dataOffset = indexOffset + size * UNSIGNED_SIZE;
 
     for (int i = 0; i < size; i++) {
@@ -251,7 +252,7 @@ void RecordBasedFileManager::getRecordSizeAndFormat(const void *data, const std:
         }
 
         // copy offset to head of record
-        memcpy((char *)record + indexOffset, (char *) dataOffset, UNSIGNED_SIZE);
+        memcpy((char *)record + indexOffset, (char *) &dataOffset, UNSIGNED_SIZE);
         indexOffset += UNSIGNED_SIZE;
     }
 
