@@ -3,6 +3,13 @@
 
 #include "pfm.h"
 
+#define F_POS 4092
+#define N_POS 4088
+#define DICT_SIZE 8
+#define INIT_FREE_SPACE 4088
+#define INT_SIZE 4
+#define UNSIGNED_SIZE 4
+
 // Record ID
 typedef struct {
     unsigned pageNum;    // page number
@@ -127,6 +134,34 @@ public:
             const void *value,                    // used in the comparison
             const std::vector<std::string> &attributeNames, // a list of projected attributes
             RBFM_ScanIterator &rbfm_ScanIterator);
+
+    unsigned getFreeSpace(FileHandle &fileHandle, unsigned pageNum);
+
+    unsigned getSlotNum(FileHandle &fileHandle, unsigned pageNum);
+
+    // return -1 for none space remain, otherwise the page can insert
+    int scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed);
+
+    // write FreeSpace & SlotNum into new page
+    unsigned initiateNewPage(FileHandle &fileHandle);
+
+    void setSlot(void *pageData, unsigned slotNum);
+
+    void setSpace(void *pageData, unsigned freeSpace);
+
+    void getOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length);
+
+    void setOffsetAndLength(void *data, unsigned offset, unsigned length, unsigned slotNum);
+
+    unsigned getRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor);
+
+    void getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize);
+
+    RC insertRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize, const void *data);
+
+    unsigned getInsertOffset(void *data, unsigned slotNum);
+
+    void writeData(void *pageData, const void *data, unsigned offset, unsigned length);
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction

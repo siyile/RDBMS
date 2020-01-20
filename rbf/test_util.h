@@ -23,7 +23,7 @@ int getActualByteForNullsIndicator(int fieldCount) {
     return ceil((double) fieldCount / CHAR_BIT);
 }
 
-// After createFile() check
+// After createFile() check2q
 int createFileShouldSucceed(std::string &fileName) {
     if (FileExists(fileName)) {
         std::cout << "File " << fileName << " has been created properly." << std::endl << std::endl;

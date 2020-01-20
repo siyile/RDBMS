@@ -1,4 +1,8 @@
+#include <vector>
+#include <cstring>
 #include "rbfm.h"
+#include <cmath>
+#include <iostream>
 
 RecordBasedFileManager &RecordBasedFileManager::instance() {
     static RecordBasedFileManager _rbf_manager = RecordBasedFileManager();
@@ -14,29 +18,79 @@ RecordBasedFileManager::RecordBasedFileManager(const RecordBasedFileManager &) =
 RecordBasedFileManager &RecordBasedFileManager::operator=(const RecordBasedFileManager &) = default;
 
 RC RecordBasedFileManager::createFile(const std::string &fileName) {
-    return -1;
+    return PagedFileManager::instance().createFile(fileName);
 }
 
 RC RecordBasedFileManager::destroyFile(const std::string &fileName) {
-    return -1;
+    return  PagedFileManager::instance().destroyFile(fileName);
 }
 
 RC RecordBasedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-    return -1;
+    return PagedFileManager::instance().openFile(fileName,fileHandle);
 }
 
 RC RecordBasedFileManager::closeFile(FileHandle &fileHandle) {
-    return -1;
+    return  PagedFileManager::instance().closeFile(fileHandle);;
 }
 
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const void *data, RID &rid) {
-    return -1;
+    unsigned pageNum = fileHandle.getNumberOfPages();
+    unsigned curPage = pageNum - 1;
+    unsigned dataSize = getRecordSize(data, recordDescriptor);
+    unsigned spaceNeed = dataSize + DICT_SIZE;
+    unsigned targetPage;
+
+    // find target page to insert
+    if (pageNum == 0) {
+        initiateNewPage(fileHandle);
+        targetPage = 0;
+    } else {
+        if (getFreeSpace(fileHandle, curPage) <= spaceNeed) {
+            // current page have enough space
+            targetPage = curPage;
+        } else {
+            // scan
+            int scannedPage = scanFreeSpace(fileHandle, curPage, spaceNeed);
+            if (scannedPage == -1) {
+                // not enough space
+                initiateNewPage(fileHandle);
+                curPage++;
+                targetPage = curPage;
+            } else {
+                // find target page
+                targetPage = scannedPage;
+            }
+        }
+    }
+
+    // insertRecordIntoPage
+    insertRecordIntoPage(fileHandle, targetPage, dataSize, data);
+
+    rid.pageNum = targetPage;
+    rid.slotNum = getSlotNum(fileHandle, targetPage);
+
+    return 0;
 }
 
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                       const RID &rid, void *data) {
-    return -1;
+    unsigned pageNum = rid.pageNum;
+    unsigned slotNum = rid.slotNum;
+
+    void *pageData = malloc(PAGE_SIZE);
+    fileHandle.readPage(pageNum, pageData);
+
+    unsigned offset;
+    unsigned length;
+
+    getOffsetAndLength(pageData, slotNum, offset, length);
+
+    memcpy(data, (char *) pageData + offset, length);
+
+    free(pageData);
+
+    return 0;
 }
 
 RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -45,7 +99,47 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
 }
 
 RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data) {
-    return -1;
+    unsigned size = recordDescriptor.size();
+    unsigned pos = 0;
+
+    int *attrsExist = new int[size];
+    getAttrExistArray(pos, attrsExist, data, size);
+
+    for (int i = 0; i < size; i++) {
+        Attribute attr = recordDescriptor[i];
+        std::cout << attr.name << ": ";
+        bool exist = attrsExist[i];
+        if (exist) {
+            if (attr.type == TypeInt) {
+                int intValue;
+                memcpy(&intValue, (char *) data + pos, INT_SIZE);
+                std::cout << intValue;
+                pos += INT_SIZE;
+            } else if (attr.type == TypeReal) {
+                float floatValue;
+                memcpy(&floatValue, (char *) data + pos, INT_SIZE);
+                std::cout << floatValue;
+                pos += INT_SIZE;
+            } else {
+                // type == TypeVarChar
+                unsigned charLength;
+                memcpy(&charLength, (char *) data + pos, INT_SIZE);
+                pos += INT_SIZE;
+                auto *value = static_cast<char *>(malloc(PAGE_SIZE));
+                memcpy(value, (char *) data + pos, charLength);
+                std::cout.write(value, charLength);
+                pos += charLength;
+                free(value);
+            }
+        } else {
+            std::cout << "NULL";
+        }
+        if (i != size - 1) {
+            std::cout << " ";
+        }
+    }
+
+    return 0;
 }
 
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -63,6 +157,164 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attrib
                                 const std::vector<std::string> &attributeNames, RBFM_ScanIterator &rbfm_ScanIterator) {
     return -1;
 }
+
+unsigned RecordBasedFileManager::getFreeSpace(FileHandle &fileHandle, unsigned pageNum) {
+    char *data = static_cast<char *>(malloc(PAGE_SIZE));
+    fileHandle.readPage(pageNum, data);
+    unsigned freeSpace;
+    memcpy(&freeSpace, data + F_POS, sizeof(unsigned));
+    free(data);
+    return freeSpace;
+}
+
+unsigned RecordBasedFileManager::getSlotNum(FileHandle &fileHandle, unsigned pageNum) {
+    char *data = static_cast<char *>(malloc(PAGE_SIZE));;
+    fileHandle.readPage(pageNum, data);
+    unsigned slotNum;
+    memcpy(&slotNum, data + N_POS, sizeof(unsigned));
+    free(data);
+    return slotNum;
+}
+
+int RecordBasedFileManager::scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed) {
+    for (unsigned i = 0; i < curPageNum; i++) {
+        if (sizeNeed <= getFreeSpace(fileHandle, i)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+unsigned RecordBasedFileManager::initiateNewPage(FileHandle &fileHandle) {
+    auto *data = static_cast<unsigned int *>(malloc(PAGE_SIZE));
+    *(data + F_POS / sizeof(unsigned)) = INIT_FREE_SPACE;
+    *(data + N_POS / sizeof(unsigned)) = 0;
+
+    fileHandle.appendPage(data);
+    free(data);
+
+    return 0;
+}
+
+void RecordBasedFileManager::setSlot(void *pageData, unsigned slotNum) {
+    memcpy((char *) pageData + N_POS, (char *) &slotNum, UNSIGNED_SIZE);
+}
+
+void RecordBasedFileManager::setSpace(void *pageData, unsigned freeSpace) {
+    memcpy((char *) pageData + F_POS, (char *) &freeSpace, UNSIGNED_SIZE);
+}
+
+unsigned RecordBasedFileManager::getRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor) {
+    unsigned size = recordDescriptor.size();
+    unsigned pos = 0;
+
+    int *attrsExist = new int[size];
+    getAttrExistArray(pos, attrsExist, data, size);
+
+    for (int i = 0; i < size; i++) {
+        Attribute attr = recordDescriptor[i];
+        bool exist = attrsExist[i];
+        if (exist) {
+            if (attr.type == TypeInt || attr.type == TypeReal) {
+                pos += INT_SIZE;
+            } else {
+                // type == TypeVarChar
+                unsigned charLength;
+                memcpy(&charLength, (char *) data + pos, INT_SIZE);
+                pos += INT_SIZE;
+                pos += charLength;
+            }
+        }
+    }
+
+    return pos;
+}
+
+int getBit(unsigned char byte, int position) // position in range 0-7
+{
+    return (byte >> position) & 0x1;
+}
+
+RC
+RecordBasedFileManager::insertRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize, const void *data) {
+    unsigned freeSpace = getFreeSpace(fileHandle, pageIdx);
+    unsigned slotNum = getSlotNum(fileHandle, pageIdx);
+
+    void *pageData = static_cast<char *>(malloc(PAGE_SIZE));
+    fileHandle.readPage(pageIdx, pageData);
+
+    unsigned offset = getInsertOffset(pageData, slotNum);
+    writeData(pageData, data, offset, dataSize);
+
+    slotNum++;
+    freeSpace += - dataSize - DICT_SIZE;
+
+    setSlot(pageData, slotNum);
+    setSpace(pageData, freeSpace);
+    setOffsetAndLength(pageData, offset, dataSize, slotNum);
+
+    fileHandle.writePage(pageIdx, pageData);
+
+    free(pageData);
+}
+
+void
+RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize) {
+    unsigned nullIndicatorSize = (attrSize + 7) / 8;
+    char *block = static_cast<char *>(malloc(sizeof(char) * nullIndicatorSize));
+    memcpy(block, (char *) data, nullIndicatorSize);
+    unsigned idx = 0;
+    for (unsigned i = 0; i < nullIndicatorSize; i++) {
+        for (int j = 0; j < 8 && idx < attrSize; j++) {
+            if (getBit(block[i], j) == 0) {
+                attrExist[idx] = 1;
+            } else {
+                attrExist[idx] = 0;
+            }
+            idx++;
+        }
+    }
+    pos += nullIndicatorSize;
+}
+
+unsigned RecordBasedFileManager::getInsertOffset(void *data, unsigned slotNum) {
+    if (slotNum == 0) {
+        return 0;
+    }
+
+    unsigned pos = PAGE_SIZE - 2 * UNSIGNED_SIZE - slotNum * DICT_SIZE;
+
+    unsigned lastOffset;
+    memcpy(&lastOffset, (char *) data + pos, UNSIGNED_SIZE);
+
+    pos += UNSIGNED_SIZE;
+    unsigned lastLength;
+    memcpy(&lastLength, (char *) data + pos, UNSIGNED_SIZE);
+
+    unsigned offset = lastOffset + lastLength;
+
+    return offset;
+}
+
+void RecordBasedFileManager::writeData(void *pageData, const void *data, unsigned offset, unsigned length) {
+    memcpy((char *) pageData + offset, (char *)data, length);
+}
+
+void RecordBasedFileManager::setOffsetAndLength(void *data, unsigned offset, unsigned length, unsigned slotNum) {
+    unsigned pos = PAGE_SIZE - 2 * UNSIGNED_SIZE - DICT_SIZE * slotNum;
+
+    memcpy((char *) data + pos, (char *) &offset, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+    memcpy((char *) data + pos, (char *) &length, UNSIGNED_SIZE);
+}
+
+void RecordBasedFileManager::getOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length) {
+    unsigned pos = PAGE_SIZE - 2 * UNSIGNED_SIZE - slotNum * DICT_SIZE;
+    memcpy(&offset, (char *) data + pos, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+    memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
+};
+
 
 
 

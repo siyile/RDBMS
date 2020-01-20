@@ -25,6 +25,8 @@ int RBFTest_4(PagedFileManager &pfm) {
     rc = pfm.openFile(fileName, fileHandle);
     assert(rc == success && "Opening the file should not fail.");
 
+    std::cout << "Start" << std::endl;
+
     // Collect before counters
     rc = fileHandle.collectCounterValues(readPageCount, writePageCount, appendPageCount);
     if (rc != success) {
