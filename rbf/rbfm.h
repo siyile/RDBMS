@@ -154,7 +154,8 @@ public:
 
     void setOffsetAndLength(void *data, unsigned offset, unsigned length, unsigned slotNum);
 
-    unsigned getRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor);
+    void getRecordSizeAndFormat(const void *data, const std::vector<Attribute> &recordDescriptor,
+                                unsigned &dataSize, void *record);
 
     void getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize);
 

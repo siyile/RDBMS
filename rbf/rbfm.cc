@@ -37,7 +37,10 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
                                         const void *data, RID &rid) {
     unsigned pageNum = fileHandle.getNumberOfPages();
     unsigned curPage = pageNum - 1;
-    unsigned dataSize = getRecordSize(data, recordDescriptor);
+    // reformat record data
+    void* recordData = nullptr;
+    unsigned dataSize;
+    getRecordSizeAndFormat(data, recordDescriptor, dataSize, recordData);
     unsigned spaceNeed = dataSize + DICT_SIZE;
     unsigned targetPage;
 
@@ -65,7 +68,9 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     }
 
     // insertRecordIntoPage
-    insertRecordIntoPage(fileHandle, targetPage, dataSize, data);
+    insertRecordIntoPage(fileHandle, targetPage, dataSize, recordData);
+
+    free(recordData);
 
     rid.pageNum = targetPage;
     rid.slotNum = getSlotNum(fileHandle, targetPage);
@@ -204,30 +209,53 @@ void RecordBasedFileManager::setSpace(void *pageData, unsigned freeSpace) {
     memcpy((char *) pageData + F_POS, (char *) &freeSpace, UNSIGNED_SIZE);
 }
 
-unsigned RecordBasedFileManager::getRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor) {
+void RecordBasedFileManager::getRecordSizeAndFormat(const void *data, const std::vector<Attribute> &recordDescriptor,
+                                                    unsigned &dataSize, void *record) {
     unsigned size = recordDescriptor.size();
+    // pos = pointer position of original data
     unsigned pos = 0;
 
     int *attrsExist = new int[size];
     getAttrExistArray(pos, attrsExist, data, size);
+
+    record = malloc(PAGE_SIZE);
+
+    // write attribute number into start position
+    memcpy((char *) record, (char *) size, UNSIGNED_SIZE);
+
+    //write null flag into start position
+    memcpy((char *) record + UNSIGNED_SIZE, (char *) data, pos);
+
+    unsigned indexOffset = UNSIGNED_SIZE + UNSIGNED_SIZE;
+    unsigned dataOffset = indexOffset + size * UNSIGNED_SIZE;
 
     for (int i = 0; i < size; i++) {
         Attribute attr = recordDescriptor[i];
         bool exist = attrsExist[i];
         if (exist) {
             if (attr.type == TypeInt || attr.type == TypeReal) {
-                pos += INT_SIZE;
+                memcpy((char *)record + dataOffset, (char *) data + pos, UNSIGNED_SIZE);
+                pos += UNSIGNED_SIZE;
+                dataOffset += UNSIGNED_SIZE;
             } else {
-                // type == TypeVarChar
                 unsigned charLength;
                 memcpy(&charLength, (char *) data + pos, INT_SIZE);
-                pos += INT_SIZE;
+                pos += UNSIGNED_SIZE;
+
+                memcpy((char *) record + dataOffset, (char *) data + pos, charLength);
                 pos += charLength;
+                dataOffset += charLength;
             }
+        } else {
+            // do nothing
         }
+
+        // copy offset to head of record
+        memcpy((char *)record + indexOffset, (char *) dataOffset, UNSIGNED_SIZE);
+        indexOffset += UNSIGNED_SIZE;
     }
 
-    return pos;
+    dataSize = dataOffset;
 }
 
 int getBit(unsigned char byte, int position) // position in range 0-7
