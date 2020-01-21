@@ -1,38 +1,57 @@
 1. Basic information
-Team #:
+Team #: 18
 Github Repo Link:
-Student 1 UCI NetID:
-Student 1 Name:
-Student 2 UCI NetID (if applicable):
-Student 2 Name (if applicable):
+Student 1 UCI NetID: siyile
+Student 1 Name: Siyi Le
+Student 2 UCI NetID: jyin12
+Student 2 Name: Jie Yin
 
 
 2. Internal Record Format
 - Show your record format design and describe how your design satisfies O(1) field access.
 
+Since the record descriptor is continuous messages, printRecord has to recognize them and organize them into right format.
+We use a few bytes for the null-fields-indicator, the size of null-fields-indicator is calculated by ceiling its number of attributes.
+Each bit passes the null information about each of the incoming record's fields, and it will be set to 1 if the corresponding field value is null.
+For the rest part of record, each attribute will have exact space corresponding to their inside variable type except VarChar.
 
 
 - Describe how you store a VarChar field.
-
-
+For VarChar, we allocate extra space for int size to indicate the length of VarChar itself.
+We have another variable call 'charLength', we use it to decide how many bytes to malloc for this VarChar.
+And use 'pos' as index to show where this VarChar field should be inserted.
 
 3. Page Format
 - Show your page format design
 
+The whole page can be separate into three parts:
+    The first part is used to store records.
+    The second part is dictionary. Each slot has 8 bytes to indicate offset and length.
+    At the end of page, we allocate extra 8 bytes to store and update the slot number and free space left in this page.
 
 
 4. Page Management
 - Show your algorithm of finding next available-space page when inserting a record.
 
+In order to find a target page to insert, we create a few helper functions.
+Firstly, we have a function to get free space of current page, the last page at that time.
+If current page is larger than the space for a new dictionary plus the size of record itself, then current page will be the target page we need.
+If not, we have another function call scanFreeSpace, which returns the first page that contains enough space for inserting.
+If we can find this page, then assign this result to target page. If not, we initiate a new page for this record.
 
 
 - Show your hidden page format design if applicable
 
-
+At the beginning of this file, we use the first page to store the three attributes of this file: readPageCount,writePageCount and appendPageCount.
+Record information will be inserting into the next page, which still be numbered as page0.
 
 5. Implementation Detail
 - Other implementation details goes here.
 
+There are a few words about how hidden page work.
+When we need to manage files, fileHandle will read readPageCount,writePageCount and appendPageCount from the hidden page and assign them to its own counters.
+After each operation, fileHandle will physically write counters' value into hidden page to update these three values.
+In this way, we can avoid conflict when multiple fileHandle deal with same file.
 
 
 6. Other (optional)

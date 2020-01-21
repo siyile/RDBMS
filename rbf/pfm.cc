@@ -121,7 +121,6 @@ RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePage
 RC FileHandle::phyWriteCounterValues() {
     if (fs.is_open()) {
         fs.seekp (0, std::ios::beg);
-//        std::cout << "write " << readPageCounter << writePageCounter << appendPageCounter << std::endl;
         fs.write(reinterpret_cast<const char *>(&readPageCounter), sizeof(readPageCounter));
         fs.write(reinterpret_cast<const char *>(&writePageCounter), sizeof(writePageCounter));
         fs.write(reinterpret_cast<const char *>(&appendPageCounter), sizeof(appendPageCounter));
@@ -139,7 +138,6 @@ RC FileHandle::phyReadCounterValues() {
     fs.read(reinterpret_cast<char *>(&appendPageCounter), sizeof(appendPageCounter));
     totalPageCounter = appendPageCounter;
 
-//    std::cout << "read " << readPageCounter << writePageCounter << appendPageCounter << std::endl;
 };
 
 
