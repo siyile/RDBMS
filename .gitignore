@@ -1,0 +1,5 @@
+*.patch
+.idea/
+cmake-build-debug
+
+
