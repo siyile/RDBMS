@@ -159,9 +159,9 @@ public:
 
     void getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize, bool isRecord);
 
-    RC insertRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize, const void *data);
+    void appendRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize, const void *data);
 
-    unsigned getInsertOffset(void *data, unsigned slotNum);
+    unsigned getTargetRecordOffset(void *data, unsigned slotNum);
 
     void writeData(void *pageData, const void *data, unsigned offset, unsigned length);
 
