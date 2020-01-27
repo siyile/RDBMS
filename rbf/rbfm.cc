@@ -91,6 +91,10 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
 
     getOffsetAndLength(pageData, slotNum, offset, length);
 
+    if (length == 0) {
+        return -1;
+    }
+
     void *record = malloc(length);
 
     memcpy(record, (char *) pageData + offset, length);
@@ -206,6 +210,10 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
 
     unsigned offset, length;
     getOffsetAndLength(data, slotNum, offset, length);
+
+    if (length == 0) {
+        return -1;
+    }
 
     // set new free space & total slotNum remain unchanged
     unsigned freeSpace = getFreeSpaceByPageNum(fileHandle, pageNum);
