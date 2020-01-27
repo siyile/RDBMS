@@ -136,9 +136,13 @@ public:
             const std::vector<std::string> &attributeNames, // a list of projected attributes
             RBFM_ScanIterator &rbfm_ScanIterator);
 
-    unsigned getFreeSpace(FileHandle &fileHandle, unsigned pageNum);
+    unsigned getFreeSpaceByPageNum(FileHandle &fileHandle, unsigned pageNum);
 
-    unsigned getSlotNum(FileHandle &fileHandle, unsigned pageNum);
+    unsigned getTotalSlotByPageNum(FileHandle &fileHandle, unsigned pageNum);
+
+    unsigned getFreeSpace(const void *data);
+
+    unsigned getTotalSlot(const void *data);
 
     // return -1 for none space remain, otherwise the page can insert
     int scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed);
@@ -152,7 +156,7 @@ public:
 
     void getOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length);
 
-    void setOffsetAndLength(void *data, unsigned offset, unsigned length, unsigned slotNum);
+    void setOffsetAndLength(void *data, unsigned slotNum, unsigned offset, unsigned length);
 
     void convertDataToRecord(const void *data, void *record, unsigned &recordSize,
                              const std::vector<Attribute> &recordDescriptor);
@@ -163,9 +167,11 @@ public:
 
     unsigned getTargetRecordOffset(void *data, unsigned slotNum);
 
-    void writeData(void *pageData, const void *data, unsigned offset, unsigned length);
+    void writeData(void *pageData, const void *record, unsigned offset, unsigned length);
 
     void convertRecordToData(void *record, void *data, const std::vector<Attribute> &recordDescriptor);
+
+    void shiftRecord(void *data, unsigned slotNum, unsigned length, bool isLeftShift);
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction

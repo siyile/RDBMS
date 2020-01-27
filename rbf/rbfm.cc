@@ -49,7 +49,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
         initiateNewPage(fileHandle);
         targetPage = 0;
     } else {
-        if (getFreeSpace(fileHandle, curPage) <= spaceNeed) {
+        if (getFreeSpaceByPageNum(fileHandle, curPage) <= spaceNeed) {
             // current page have enough space
             targetPage = curPage;
         } else {
@@ -73,7 +73,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     free(recordData);
 
     rid.pageNum = targetPage;
-    rid.slotNum = getSlotNum(fileHandle, targetPage);
+    rid.slotNum = getTotalSlotByPageNum(fileHandle, targetPage);
 
     return 0;
 }
@@ -196,18 +196,29 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
 
 RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const RID &rid) {
-    int pageNum = rid.pageNum;
-    int slotNum = rid.slotNum;
+    unsigned pageNum = rid.pageNum;
+    unsigned slotNum = rid.slotNum;
 
     // read page data into variable data
     void* data = malloc(PAGE_SIZE);
     fileHandle.readPage(pageNum, data);
 
+
     unsigned offset, length;
     getOffsetAndLength(data, slotNum, offset, length);
 
+    // set new free space & total slotNum remain unchanged
+    unsigned freeSpace = getFreeSpaceByPageNum(fileHandle, pageNum);
+    setSpace(data, freeSpace - length);
 
+    // left shift
+    shiftRecord(data, slotNum + 1, length, true);
 
+    // update previous slot
+    setOffsetAndLength(data, slotNum, offset, 0);
+
+    //write into file
+    fileHandle.writePage(pageNum, data);
 
     free(data);
     return 0;
@@ -275,7 +286,7 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attrib
 
 int RecordBasedFileManager::scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed) {
     for (unsigned i = 0; i < curPageNum; i++) {
-        if (sizeNeed <= getFreeSpace(fileHandle, i)) {
+        if (sizeNeed <= getFreeSpaceByPageNum(fileHandle, i)) {
             return i;
         }
     }
@@ -308,8 +319,8 @@ int getBit(unsigned char byte, int position) // position in range 0-7
 
 void
 RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize, const void *data) {
-    unsigned freeSpace = getFreeSpace(fileHandle, pageIdx);
-    unsigned slotNum = getSlotNum(fileHandle, pageIdx);
+    unsigned freeSpace = getFreeSpace(data);
+    unsigned slotNum = getTotalSlot(data);
 
     void *pageData = static_cast<char *>(malloc(PAGE_SIZE));
     fileHandle.readPage(pageIdx, pageData);
@@ -322,7 +333,7 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
 
     setSlot(pageData, slotNum);
     setSpace(pageData, freeSpace);
-    setOffsetAndLength(pageData, offset, dataSize, slotNum);
+    setOffsetAndLength(pageData, slotNum, offset, dataSize);
 
     fileHandle.writePage(pageIdx, pageData);
 
@@ -367,29 +378,41 @@ unsigned RecordBasedFileManager::getTargetRecordOffset(void *data, unsigned slot
     return offset;
 }
 
-void RecordBasedFileManager::writeData(void *pageData, const void *data, unsigned offset, unsigned length) {
-    memcpy((char *) pageData + offset, (char *)data, length);
+void RecordBasedFileManager::writeData(void *pageData, const void *record, unsigned offset, unsigned length) {
+    memcpy((char *) pageData + offset, (char *)record, length);
 }
 
-unsigned RecordBasedFileManager::getFreeSpace(FileHandle &fileHandle, unsigned pageNum) {
-    char *data = static_cast<char *>(malloc(PAGE_SIZE));
+unsigned RecordBasedFileManager::getFreeSpaceByPageNum(FileHandle &fileHandle, unsigned pageNum) {
+    void *data = malloc(PAGE_SIZE);
     fileHandle.readPage(pageNum, data);
-    unsigned freeSpace;
-    memcpy(&freeSpace, data + F_POS, sizeof(unsigned));
+    unsigned freeSpace = getFreeSpace(data);
     free(data);
     return freeSpace;
 }
 
-unsigned RecordBasedFileManager::getSlotNum(FileHandle &fileHandle, unsigned pageNum) {
-    char *data = static_cast<char *>(malloc(PAGE_SIZE));;
+unsigned RecordBasedFileManager::getTotalSlotByPageNum(FileHandle &fileHandle, unsigned pageNum) {
+    void *data = malloc(PAGE_SIZE);
     fileHandle.readPage(pageNum, data);
-    unsigned slotNum;
-    memcpy(&slotNum, data + N_POS, sizeof(unsigned));
+    unsigned slotNum = getTotalSlot(data);
     free(data);
     return slotNum;
 }
 
-void RecordBasedFileManager::setOffsetAndLength(void *data, unsigned offset, unsigned length, unsigned slotNum) {
+unsigned RecordBasedFileManager::getFreeSpace(const void *data) {
+    unsigned slotNum;
+    memcpy(&slotNum, (char *)data + N_POS, sizeof(unsigned));
+
+    return slotNum;
+}
+
+unsigned RecordBasedFileManager::getTotalSlot(const void *data) {
+    unsigned freeSpace;
+    memcpy(&freeSpace, (char *) data + F_POS, sizeof(unsigned));
+
+    return freeSpace;
+}
+
+void RecordBasedFileManager::setOffsetAndLength(void *data, unsigned slotNum, unsigned offset, unsigned length) {
     unsigned pos = PAGE_SIZE - 2 * UNSIGNED_SIZE - DICT_SIZE * slotNum;
 
     memcpy((char *) data + pos, (char *) &offset, UNSIGNED_SIZE);
@@ -402,6 +425,30 @@ void RecordBasedFileManager::getOffsetAndLength(void *data, unsigned slotNum, un
     memcpy(&offset, (char *) data + pos, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
     memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
+}
+
+void RecordBasedFileManager::shiftRecord(void *data, unsigned slotNum, unsigned length, bool isLeftShift) {
+    unsigned totalSlot = getTotalSlot(data);
+    length *= isLeftShift ? -1 : 1;
+
+    // get starting offset
+    unsigned startOffset;
+    unsigned _;
+    getOffsetAndLength(data, slotNum, startOffset, _);
+
+    unsigned totalLength = 0;
+    // calculate total length & update offset
+    for (unsigned i = slotNum; i <= totalSlot; i++) {
+        unsigned recordOffset;
+        unsigned recordLength;
+        getOffsetAndLength(data, i, recordOffset, recordLength);
+        setOffsetAndLength(data, i, recordOffset + length, recordLength);
+
+        totalLength += recordLength;
+    }
+
+    // shift whole record
+    memmove((char *)data + startOffset + length, (char *)data + startOffset, totalLength);
 }
 
 
