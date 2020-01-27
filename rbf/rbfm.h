@@ -140,9 +140,9 @@ public:
 
     unsigned getTotalSlotByPageNum(FileHandle &fileHandle, unsigned pageNum);
 
-    unsigned getFreeSpace(const void *data);
-
     unsigned getTotalSlot(const void *data);
+
+    unsigned getFreeSpace(const void *data);
 
     // return -1 for none space remain, otherwise the page can insert
     int scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed);
@@ -163,11 +163,12 @@ public:
 
     void getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize, bool isRecord);
 
-    void appendRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize, const void *data);
+    void appendRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize,
+                              const void *record, RID &rid);
 
     unsigned getTargetRecordOffset(void *data, unsigned slotNum);
 
-    void writeData(void *pageData, const void *record, unsigned offset, unsigned length);
+    void writeRecord(void *pageData, const void *record, unsigned offset, unsigned length);
 
     void convertRecordToData(void *record, void *data, const std::vector<Attribute> &recordDescriptor);
 
