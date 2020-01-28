@@ -106,7 +106,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
 void
 RecordBasedFileManager::convertRecordToData(void *record, void *data, const std::vector<Attribute> &recordDescriptor) {
     unsigned size = recordDescriptor.size();
-    unsigned pos = UNSIGNED_SIZE;
+    unsigned pos = UNSIGNED_SIZE + REDIRECT_INDICATOR_SIZE;
     unsigned destPos = 0;
 
     int *attrsExist = new int[size];
@@ -150,17 +150,24 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
     // pos = pointer position of original data
     unsigned pos = 0;
 
+    // add redirect indicator
+    unsigned char redirectIndicator = 0x0;
+    memcpy(record, &redirectIndicator, REDIRECT_INDICATOR_SIZE);
+    pos += REDIRECT_INDICATOR_SIZE;
+
     int *attrsExist = new int[size];
     getAttrExistArray(pos, attrsExist, data, size, false);
 
     // write attribute number into start position
-    memcpy((char *) record, (char *) &size, UNSIGNED_SIZE);
+    memcpy((char *) record + pos, (char *) &size, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
 
     //write null flag into start position
-    memcpy((char *) record + UNSIGNED_SIZE, (char *) data, nullIndicatorSize);
+    memcpy((char *) record + pos, (char *) data, nullIndicatorSize);
+    pos += nullIndicatorSize;
 
     // indexOffset is the offset of the recordIndex from beginning
-    unsigned indexOffset = UNSIGNED_SIZE + nullIndicatorSize;
+    unsigned indexOffset = pos;
 
     // dataOffset is the offset of the recordData after index
     unsigned dataOffset = indexOffset + size * UNSIGNED_SIZE;
@@ -481,6 +488,12 @@ void RecordBasedFileManager::leftShiftRecord(void *data, unsigned startOffset, u
 
     // shift whole record
     memmove((char *)data + startOffset, (char *)data + startOffset + length, totalLength);
+}
+
+bool RecordBasedFileManager::isRedirect(void *data) {
+    unsigned char redirectFlag;
+    memcpy(&redirectFlag, data, REDIRECT_INDICATOR_SIZE);
+    return redirectFlag == 0x1;
 }
 
 

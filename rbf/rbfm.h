@@ -10,6 +10,7 @@
 #define INIT_FREE_SPACE 4088
 #define INT_SIZE 4
 #define UNSIGNED_SIZE 4
+#define REDIRECT_INDICATOR_SIZE 1
 
 // Record ID
 typedef struct {
@@ -173,6 +174,8 @@ public:
     void convertRecordToData(void *record, void *data, const std::vector<Attribute> &recordDescriptor);
 
     void leftShiftRecord(void *data, unsigned startOffset, unsigned int length);
+
+    bool isRedirect(void *data);
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction
