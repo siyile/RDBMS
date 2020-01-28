@@ -436,9 +436,9 @@ void RecordBasedFileManager::getOffsetAndLength(void *data, unsigned slotNum, un
     memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
 }
 
-void RecordBasedFileManager::shiftRecord(void *data, unsigned slotNum, unsigned length, bool isLeftShift) {
-    unsigned totalSlot = getFreeSpace(data);
-    length *= isLeftShift ? -1 : 1;
+void RecordBasedFileManager::shiftRecord(void *data, unsigned slotNum, int length, bool isLeftShift) {
+    unsigned totalSlot = getTotalSlot(data);
+    length *= (isLeftShift ? -1 : 1);
 
     // get starting offset
     unsigned startOffset;

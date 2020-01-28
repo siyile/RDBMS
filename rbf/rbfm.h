@@ -172,7 +172,7 @@ public:
 
     void convertRecordToData(void *record, void *data, const std::vector<Attribute> &recordDescriptor);
 
-    void shiftRecord(void *data, unsigned slotNum, unsigned length, bool isLeftShift);
+    void shiftRecord(void *data, unsigned slotNum, int length, bool isLeftShift);
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction
