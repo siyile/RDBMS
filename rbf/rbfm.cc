@@ -212,12 +212,12 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
         return -1;
     }
 
-    // set new free space & total slotNum remain unchanged
-    unsigned freeSpace = getFreeSpaceByPageNum(fileHandle, pageNum);
-    setSpace(data, freeSpace - length);
-
     // left shift
-    shiftRecord(data, slotNum + 1, length, true);
+    shiftRecord(data, offset, length);
+
+    // set new free space & total slotNum remain unchanged
+    unsigned freeSpace = getFreeSpace(data);
+    setSpace(data, freeSpace - length);
 
     // update previous slot
     setOffsetAndLength(data, slotNum, offset, 0);
@@ -331,11 +331,35 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
     unsigned freeSpace = getFreeSpace(pageData);
     unsigned slotNum = getTotalSlot(pageData);
 
-    unsigned offset = getTargetRecordOffset(pageData, slotNum);
-    writeRecord(pageData, record, offset, dataSize);
+    unsigned targetSlotNum = slotNum + 1;
 
-    slotNum++;
-    freeSpace += - dataSize - DICT_SIZE;
+    // scan page until find a empty slot.
+    // ATTENTION: this is the slot that previously deleted.
+    for (unsigned i = slotNum; i > 0; i--) {
+        unsigned recordOffset;
+        unsigned recordLength;
+        getOffsetAndLength(pageData, i, recordOffset, recordLength);
+
+        // find record is already deleted.
+        if (recordLength == 0) {
+            targetSlotNum = i;
+            break;
+        }
+    }
+
+    unsigned offset;
+
+    // if have previously deleted slot, calculate offset by free space
+    if (targetSlotNum == slotNum + 1) {
+        slotNum++;
+        offset = PAGE_SIZE - freeSpace - slotNum * DICT_SIZE - 2 * UNSIGNED_SIZE;
+        freeSpace += - dataSize - DICT_SIZE;
+    } else {
+        offset = PAGE_SIZE - freeSpace - slotNum * DICT_SIZE - 2 * UNSIGNED_SIZE;
+        freeSpace += - dataSize;
+    }
+
+    writeRecord(pageData, record, offset, dataSize);
 
     setSlot(pageData, slotNum);
     setSpace(pageData, freeSpace);
@@ -344,7 +368,7 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
     fileHandle.writePage(pageIdx, pageData);
 
     rid.pageNum = pageIdx;
-    rid.slotNum = slotNum;
+    rid.slotNum = targetSlotNum;
 
     free(pageData);
 }
@@ -436,29 +460,27 @@ void RecordBasedFileManager::getOffsetAndLength(void *data, unsigned slotNum, un
     memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
 }
 
-void RecordBasedFileManager::shiftRecord(void *data, unsigned slotNum, int length, bool isLeftShift) {
+// TODO: shift function need change
+void RecordBasedFileManager::shiftRecord(void *data, unsigned startOffset, unsigned int length) {
     unsigned totalSlot = getTotalSlot(data);
-    length *= (isLeftShift ? -1 : 1);
 
-    // get starting offset
-    unsigned startOffset;
-    unsigned _;
-    getOffsetAndLength(data, slotNum, startOffset, _);
-
-    unsigned totalLength = 0;
-    // calculate total length & update offset
-    for (unsigned i = slotNum; i <= totalSlot; i++) {
+    for (int i = 1; i <= totalSlot; i++) {
         unsigned recordOffset;
         unsigned recordLength;
         getOffsetAndLength(data, i, recordOffset, recordLength);
-        setOffsetAndLength(data, i, recordOffset + length, recordLength);
-
-        totalLength += recordLength;
+        if (recordOffset > startOffset) {
+            recordOffset -= length;
+            setOffsetAndLength(data, i, recordOffset, recordLength);
+        }
     }
 
+    unsigned freeSpace = getFreeSpace(data);
+    unsigned totalLength = PAGE_SIZE - freeSpace - totalSlot * DICT_SIZE - 2 * UNSIGNED_SIZE - startOffset - length;
+
     // shift whole record
-    memmove((char *)data + startOffset + length, (char *)data + startOffset, totalLength);
+    memmove((char *)data + startOffset, (char *)data + startOffset + length, totalLength);
 }
+
 
 
 
