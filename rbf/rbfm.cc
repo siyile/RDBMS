@@ -496,4 +496,25 @@ bool RecordBasedFileManager::isRedirect(void *data) {
     return redirectFlag == 0x1;
 }
 
+void RecordBasedFileManager::rightShiftRecord(void *data, unsigned startOffset, unsigned int length,
+                                              unsigned int updatedLength) {
+    unsigned totalSlot = getTotalSlot(data);
+
+    for (int i = 1; i <= totalSlot; i++) {
+        unsigned recordOffset;
+        unsigned recordLength;
+        getOffsetAndLength(data, i, recordOffset, recordLength);
+        if (recordOffset > startOffset) {
+            recordOffset += updatedLength - length;
+            setOffsetAndLength(data, i, recordOffset, recordLength);
+        }
+    }
+
+    unsigned freeSpace = getFreeSpace(data);
+    unsigned totalLength = PAGE_SIZE - freeSpace - totalSlot * DICT_SIZE - 2 * UNSIGNED_SIZE - startOffset - length;
+
+    // shift whole record
+    memmove((char *)data + startOffset + updatedLength, (char *)data + startOffset + length, totalLength);
+}
+
 

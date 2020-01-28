@@ -177,6 +177,9 @@ public:
 
     bool isRedirect(void *data);
 
+    void rightShiftRecord(void *data, unsigned startOffset, unsigned int length,
+                          unsigned int updatedLength);
+
 protected:
     RecordBasedFileManager();                                                   // Prevent construction
     ~RecordBasedFileManager();                                                  // Prevent unwanted destruction
