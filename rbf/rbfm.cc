@@ -217,7 +217,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
 
     // set new free space & total slotNum remain unchanged
     unsigned freeSpace = getFreeSpace(data);
-    setSpace(data, freeSpace - length);
+    setSpace(data, freeSpace + length);
 
     // update previous slot
     setOffsetAndLength(data, slotNum, offset, 0);
@@ -351,8 +351,8 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
 
     // if have previously deleted slot, calculate offset by free space
     if (targetSlotNum == slotNum + 1) {
-        slotNum++;
         offset = PAGE_SIZE - freeSpace - slotNum * DICT_SIZE - 2 * UNSIGNED_SIZE;
+        slotNum++;
         freeSpace += - dataSize - DICT_SIZE;
     } else {
         offset = PAGE_SIZE - freeSpace - slotNum * DICT_SIZE - 2 * UNSIGNED_SIZE;
@@ -363,7 +363,7 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
 
     setSlot(pageData, slotNum);
     setSpace(pageData, freeSpace);
-    setOffsetAndLength(pageData, slotNum, offset, dataSize);
+    setOffsetAndLength(pageData, targetSlotNum, offset, dataSize);
 
     fileHandle.writePage(pageIdx, pageData);
 
