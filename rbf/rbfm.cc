@@ -213,7 +213,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
     }
 
     // left shift
-    shiftRecord(data, offset, length);
+    leftShiftRecord(data, offset, length);
 
     // set new free space & total slotNum remain unchanged
     unsigned freeSpace = getFreeSpace(data);
@@ -256,11 +256,13 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                 unsigned charLength;
                 memcpy(&charLength, (char *) data + pos, INT_SIZE);
                 pos += INT_SIZE;
-                auto *value = static_cast<char *>(malloc(PAGE_SIZE));
-                memcpy(value, (char *) data + pos, charLength);
-                std::cout.write(value, charLength);
-                pos += charLength;
-                free(value);
+                if (charLength != 0) {
+                    auto *value = static_cast<char *>(malloc(PAGE_SIZE));
+                    memcpy(value, (char *) data + pos, charLength);
+                    std::cout.write(value, charLength);
+                    pos += charLength;
+                    free(value);
+                }
             }
         } else {
             std::cout << "NULL";
@@ -317,9 +319,10 @@ void RecordBasedFileManager::setSpace(void *pageData, unsigned freeSpace) {
     memcpy((char *) pageData + F_POS, (char *) &freeSpace, UNSIGNED_SIZE);
 }
 
-int getBit(unsigned char byte, int position) // position in range 0-7
+bool isNullBit(unsigned char byte, int position) // position in range 0-7
 {
-    return (byte >> position) & 0x1;
+    bool nullBit = byte & (unsigned) 1 << (unsigned) (7 - position);
+    return nullBit;
 }
 
 void
@@ -381,7 +384,7 @@ RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const v
     unsigned idx = 0;
     for (unsigned i = 0; i < nullIndicatorSize; i++) {
         for (int j = 0; j < 8 && idx < attrSize; j++) {
-            if (getBit(block[i], j) == 0) {
+            if (!isNullBit(block[i], j)) {
                 attrExist[idx] = 1;
             } else {
                 attrExist[idx] = 0;
@@ -460,8 +463,7 @@ void RecordBasedFileManager::getOffsetAndLength(void *data, unsigned slotNum, un
     memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
 }
 
-// TODO: shift function need change
-void RecordBasedFileManager::shiftRecord(void *data, unsigned startOffset, unsigned int length) {
+void RecordBasedFileManager::leftShiftRecord(void *data, unsigned startOffset, unsigned int length) {
     unsigned totalSlot = getTotalSlot(data);
 
     for (int i = 1; i <= totalSlot; i++) {
@@ -480,7 +482,5 @@ void RecordBasedFileManager::shiftRecord(void *data, unsigned startOffset, unsig
     // shift whole record
     memmove((char *)data + startOffset, (char *)data + startOffset + length, totalLength);
 }
-
-
 
 
