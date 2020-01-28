@@ -106,7 +106,9 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
 void
 RecordBasedFileManager::convertRecordToData(void *record, void *data, const std::vector<Attribute> &recordDescriptor) {
     unsigned size = recordDescriptor.size();
+    // pos = pointer position in record
     unsigned pos = UNSIGNED_SIZE + REDIRECT_INDICATOR_SIZE;
+    // destPos = pointer position in data
     unsigned destPos = 0;
 
     int *attrsExist = new int[size];
@@ -149,25 +151,27 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
     unsigned nullIndicatorSize = (size + 7) / 8;
     // pos = pointer position of original data
     unsigned pos = 0;
+    // recordPos = pointer position of record data
+    unsigned recordPos = 0;
 
     // add redirect indicator
     unsigned char redirectIndicator = 0x0;
     memcpy(record, &redirectIndicator, REDIRECT_INDICATOR_SIZE);
-    pos += REDIRECT_INDICATOR_SIZE;
+    recordPos += REDIRECT_INDICATOR_SIZE;
 
     int *attrsExist = new int[size];
     getAttrExistArray(pos, attrsExist, data, size, false);
 
     // write attribute number into start position
-    memcpy((char *) record + pos, (char *) &size, UNSIGNED_SIZE);
-    pos += UNSIGNED_SIZE;
+    memcpy((char *) record + recordPos, (char *) &size, UNSIGNED_SIZE);
+    recordPos += UNSIGNED_SIZE;
 
     //write null flag into start position
-    memcpy((char *) record + pos, (char *) data, nullIndicatorSize);
-    pos += nullIndicatorSize;
+    memcpy((char *) record + recordPos, (char *) data, nullIndicatorSize);
+    recordPos += nullIndicatorSize;
 
     // indexOffset is the offset of the recordIndex from beginning
-    unsigned indexOffset = pos;
+    unsigned indexOffset = recordPos;
 
     // dataOffset is the offset of the recordData after index
     unsigned dataOffset = indexOffset + size * UNSIGNED_SIZE;
@@ -387,7 +391,7 @@ void
 RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize, bool isRecord) {
     unsigned nullIndicatorSize = (attrSize + 7) / 8;
     char *block = static_cast<char *>(malloc(sizeof(char) * nullIndicatorSize));
-    memcpy(block, (char *) data + (isRecord ? UNSIGNED_SIZE : 0), nullIndicatorSize);
+    memcpy(block, (char *) data + (isRecord ? UNSIGNED_SIZE + REDIRECT_INDICATOR_SIZE : 0), nullIndicatorSize);
     unsigned idx = 0;
     for (unsigned i = 0; i < nullIndicatorSize; i++) {
         for (int j = 0; j < 8 && idx < attrSize; j++) {
