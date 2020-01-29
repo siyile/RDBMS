@@ -175,10 +175,12 @@ public:
 
     void leftShiftRecord(void *data, unsigned startOffset, unsigned int length);
 
-    bool isRedirect(void *data);
-
     void rightShiftRecord(void *data, unsigned startOffset, unsigned int length,
                           unsigned int updatedLength);
+
+    bool isRedirected(void *record);
+
+    void getRIDFromRedirectedRecord(void* record, RID &rid);
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction

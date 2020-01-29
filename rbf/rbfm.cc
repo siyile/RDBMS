@@ -89,16 +89,23 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
     getOffsetAndLength(pageData, slotNum, offset, length);
 
     if (length == 0) {
+        free(pageData);
         return -1;
     }
 
     void *record = malloc(length);
 
     memcpy(record, (char *) pageData + offset, length);
-
-    convertRecordToData(record, data, recordDescriptor);
-
     free(pageData);
+
+    // if record is redirected, then return the forwarded data
+    if (isRedirected(record)) {
+        RID redirectRID;
+        getRIDFromRedirectedRecord(record, redirectRID);
+        return readRecord(fileHandle, recordDescriptor, redirectRID, data);
+    } else {
+        convertRecordToData(record, data, recordDescriptor);
+    }
 
     return 0;
 }
@@ -494,9 +501,9 @@ void RecordBasedFileManager::leftShiftRecord(void *data, unsigned startOffset, u
     memmove((char *)data + startOffset, (char *)data + startOffset + length, totalLength);
 }
 
-bool RecordBasedFileManager::isRedirect(void *data) {
+bool RecordBasedFileManager::isRedirected(void *record) {
     unsigned char redirectFlag;
-    memcpy(&redirectFlag, data, REDIRECT_INDICATOR_SIZE);
+    memcpy(&redirectFlag, record, REDIRECT_INDICATOR_SIZE);
     return redirectFlag == 0x1;
 }
 
@@ -519,6 +526,15 @@ void RecordBasedFileManager::rightShiftRecord(void *data, unsigned startOffset, 
 
     // shift whole record
     memmove((char *)data + startOffset + updatedLength, (char *)data + startOffset + length, totalLength);
+}
+
+void RecordBasedFileManager::getRIDFromRedirectedRecord(void *record, RID &rid) {
+    unsigned pageNum;
+    unsigned slotNum;
+    memcpy(&pageNum, (char *) record + REDIRECT_INDICATOR_SIZE, UNSIGNED_SIZE);
+    memcpy(&slotNum, (char *) record + REDIRECT_INDICATOR_SIZE + UNSIGNED_SIZE, UNSIGNED_SIZE);
+    rid.pageNum = pageNum;
+    rid.slotNum = slotNum;
 }
 
 
