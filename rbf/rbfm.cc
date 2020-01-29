@@ -183,7 +183,7 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
     // dataOffset is the offset of the recordData after index
     unsigned dataOffset = indexOffset + size * UNSIGNED_SIZE;
 
-    for (int i = 0; i < size; i++) {
+    for (unsigned i = 0; i < size; i++) {
         Attribute attr = recordDescriptor[i];
         bool exist = attrsExist[i];
         if (exist) {
@@ -234,7 +234,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
     // record is going to forward or not
     void *record = malloc(length);
     memcpy(record, (char *) data + offset, length);
-    
+
     // if is, also delete forward record
     if (isRedirected(record)) {
         RID redirectRID;
@@ -496,7 +496,7 @@ void RecordBasedFileManager::getOffsetAndLength(void *data, unsigned slotNum, un
 void RecordBasedFileManager::leftShiftRecord(void *data, unsigned startOffset, unsigned int length) {
     unsigned totalSlot = getTotalSlot(data);
 
-    for (int i = 1; i <= totalSlot; i++) {
+    for (unsigned i = 1; i <= totalSlot; i++) {
         unsigned recordOffset;
         unsigned recordLength;
         getOffsetAndLength(data, i, recordOffset, recordLength);
@@ -523,7 +523,7 @@ void RecordBasedFileManager::rightShiftRecord(void *data, unsigned startOffset, 
                                               unsigned int updatedLength) {
     unsigned totalSlot = getTotalSlot(data);
 
-    for (int i = 1; i <= totalSlot; i++) {
+    for (unsigned i = 1; i <= totalSlot; i++) {
         unsigned recordOffset;
         unsigned recordLength;
         getOffsetAndLength(data, i, recordOffset, recordLength);
