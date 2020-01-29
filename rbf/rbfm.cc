@@ -226,8 +226,20 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
     unsigned offset, length;
     getOffsetAndLength(data, slotNum, offset, length);
 
+    // if record is already deleted
     if (length == 0) {
         return -1;
+    }
+
+    // record is going to forward or not
+    void *record = malloc(length);
+    memcpy(record, (char *) data + offset, length);
+    
+    // if is, also delete forward record
+    if (isRedirected(record)) {
+        RID redirectRID;
+        getRIDFromRedirectedRecord(record, redirectRID);
+        deleteRecord(fileHandle, recordDescriptor, redirectRID);
     }
 
     // left shift
