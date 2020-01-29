@@ -11,6 +11,8 @@
 #define INT_SIZE 4
 #define UNSIGNED_SIZE 4
 #define REDIRECT_INDICATOR_SIZE 1
+#define RID_SIZE 9
+
 
 // Record ID
 typedef struct {
@@ -188,6 +190,8 @@ protected:
     RecordBasedFileManager(const RecordBasedFileManager &);                     // Prevent construction by copying
     RecordBasedFileManager &operator=(const RecordBasedFileManager &);          // Prevent assignment
 
+    bool
+    isRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const void *data, const RID &rid);
 };
 
 #endif // _rbfm_h_

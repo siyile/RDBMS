@@ -307,9 +307,72 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
 
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const void *data, const RID &rid) {
+    unsigned pageNum = rid.pageNum;
+    unsigned slotNum = rid.slotNum;
+
+    // read page data into variable data
+    void* recordData = malloc(PAGE_SIZE);
+    fileHandle.readPage(pageNum, recordData);
+
+    unsigned newLength;
+    convertDataToRecord(data, recordData, newLength, recordDescriptor); // get newLength
+/*
+    if (isRecord(rid)) {
+        at the same time store the last rid
+    } else return -1; // if old record cannot be found then return -1
+*/
+
+    RID realRid;
+    unsigned realPageNum = realRid.pageNum;
+    unsigned realSlotNum = realRid.slotNum;
+    unsigned freeSpace = getFreeSpace(recordData);
+
+    unsigned offset, oldLength;
+    getOffsetAndLength(recordData, realSlotNum, offset, oldLength); // get information of old record
+
+    unsigned lengthGap = oldLength - newLength;
+
+    if (lengthGap == 0) {
+        appendRecordIntoPage(fileHandle, realPageNum, newLength, recordData, realRid);
+    } else if (newLength < oldLength) {
+
+        appendRecordIntoPage(fileHandle, realPageNum, newLength, recordData, realRid);
+        // update previous slot
+        setOffsetAndLength(recordData, realSlotNum, offset, newLength);
+
+        leftShiftRecord(recordData, offset, lengthGap);
+        setSpace(recordData, freeSpace + lengthGap);
+    } else {
+        lengthGap = newLength - oldLength;
+        if (freeSpace >= lengthGap) {
+            rightShiftRecord(recordData, offset, oldLength, newLength);
+            freeSpace -= lengthGap;
+            setSpace(recordData, freeSpace);
+
+            appendRecordIntoPage(fileHandle, realPageNum, newLength, recordData, realRid);
+            setOffsetAndLength(recordData, realSlotNum, offset, newLength);
+        } else {
+            leftShiftRecord(recordData, offset, oldLength - RID_SIZE);
+            freeSpace += oldLength - RID_SIZE;
+            setOffsetAndLength(recordData, realSlotNum, offset, RID_SIZE);
+            RID curRid;
+            //把需要update的data insert到新的地方
+            insertRecord(fileHandle, recordDescriptor, data,realRid); // 这里可以得到新的curRid吗
+            //再把curRid写回来
+            appendRecordIntoPage(fileHandle, realPageNum, RID_SIZE, ???, curRid);
+        }
+    }
+
+
+    free(recordData);
     return -1;
 }
 
+/*bool RecordBasedFileManager::isRecord(const RID &rid) {
+    //read first byte, if 0X00 then return true
+    //else, isRecord(newRID)
+}
+ */
 RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                          const RID &rid, const std::string &attributeName, void *data) {
     return -1;
@@ -548,5 +611,6 @@ void RecordBasedFileManager::getRIDFromRedirectedRecord(void *record, RID &rid) 
     rid.pageNum = pageNum;
     rid.slotNum = slotNum;
 }
+
 
 
