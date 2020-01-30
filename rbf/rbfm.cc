@@ -339,8 +339,9 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
     } else if (newLength < oldLength) {
         lengthGap = oldLength - newLength;
         // if new record is shorter
-        writeRecord(pageData, newRecord, offset, newLength);
+
         // update previous slot
+        writeRecord(pageData, newRecord, offset, newLength);
         setOffsetAndLength(pageData, slotNum, offset, newLength);
 
         leftShiftRecord(pageData, offset, lengthGap);
@@ -352,15 +353,19 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
         lengthGap = newLength - oldLength;
         // if there is enough number for new record
         if (freeSpace >= lengthGap) {
+            // shift record to right
             rightShiftRecord(pageData, offset, oldLength, newLength);
             freeSpace -= lengthGap;
             setSpace(pageData, freeSpace);
-            writeRecord(pageData, newRecord, offset, newLength);
 
+            // update record
+            writeRecord(pageData, newRecord, offset, newLength);
             setOffsetAndLength(pageData, slotNum, offset, newLength);
 
             fileHandle.writePage(pageNum, pageData);
         } else {
+            // if there is not enough space for new record
+
             // set up current page
             leftShiftRecord(pageData, offset, oldLength - RID_SIZE);
             freeSpace += oldLength - RID_SIZE;
