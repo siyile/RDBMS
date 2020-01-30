@@ -184,14 +184,17 @@ public:
 
     void getRIDFromRedirectedRecord(void* record, RID &rid);
 
+    RC readRecordFromPage(void* data, void* record, unsigned slotNum);
+
+    void readRIDFromRecord(void* record, RID &rid);
+
+    void createRIDRecord(void *record, RID &rid);
+
 protected:
     RecordBasedFileManager();                                                   // Prevent construction
     ~RecordBasedFileManager();                                                  // Prevent unwanted destruction
     RecordBasedFileManager(const RecordBasedFileManager &);                     // Prevent construction by copying
     RecordBasedFileManager &operator=(const RecordBasedFileManager &);          // Prevent assignment
-
-    bool
-    isRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const void *data, const RID &rid);
 };
 
 #endif // _rbfm_h_
