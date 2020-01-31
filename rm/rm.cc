@@ -13,15 +13,24 @@ RelationManager::RelationManager(const RelationManager &) = default;
 
 RelationManager &RelationManager::operator=(const RelationManager &) = default;
 
+/*
+ * we need to hard code tables & columns in table.tbl.
+ * */
+
 RC RelationManager::createCatalog() {
+    // set tables and column attribute (hard coding)
+    // insert tuple into table.tbl & columns.tbl, using insertRecord (thus we need to mock data manually)
     return -1;
 }
 
 RC RelationManager::deleteCatalog() {
+    // find files in table.tbl
+    // delete all files
     return -1;
 }
 
 RC RelationManager::createTable(const std::string &tableName, const std::vector<Attribute> &attrs) {
+    // insert tuple into table.tbl & column.tbl
     return -1;
 }
 
@@ -34,6 +43,9 @@ RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attr
 }
 
 RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) {
+    // find corresponding table in table.tbl
+    // find attribute information in column.tbl
+    // call insertRecord
     return -1;
 }
 
