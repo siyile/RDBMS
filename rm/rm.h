@@ -8,6 +8,9 @@
 
 # define RM_EOF (-1)  // end of a scan operator
 
+# define TABLES_NAME "tables.tbl"
+# define COLUMNS_NAME "columns.tbl"
+
 // RM_ScanIterator is an iterator to go through tuples
 class RM_ScanIterator {
 public:
@@ -25,6 +28,14 @@ public:
 class RelationManager {
 public:
     static RelationManager &instance();
+
+    static std::vector<Attribute> tableAttr;
+    static std::vector<Attribute> columnAttr;
+
+    static FileHandle tableFileHandle;
+    static FileHandle columnFileHandle;
+
+    void appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len);
 
     RC createCatalog();
 
@@ -59,10 +70,17 @@ public:
             const std::vector<std::string> &attributeNames, // a list of projected attributes
             RM_ScanIterator &rm_ScanIterator);
 
+    void generateTableData(unsigned id, std::string tableName, std::string fileName);
+
+    void generateColumnData(unsigned id, std::string name, std:: string type, unsigned length,
+                            unsigned position);
+
 // Extra credit work (10 points)
     RC addAttribute(const std::string &tableName, const Attribute &attr);
 
     RC dropAttribute(const std::string &tableName, const std::string &attributeName);
+
+
 
 protected:
     RelationManager();                                                  // Prevent construction

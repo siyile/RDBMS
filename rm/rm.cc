@@ -1,11 +1,26 @@
 #include "rm.h"
 
+#include <utility>
+
 RelationManager &RelationManager::instance() {
     static RelationManager _relation_manager = RelationManager();
     return _relation_manager;
 }
 
-RelationManager::RelationManager() = default;
+RelationManager::RelationManager() {
+    // initiate table attribute
+    appendAttr(tableAttr, "table-id", TypeInt, 4);
+    appendAttr(tableAttr, "table-name", TypeVarChar, 50);
+    appendAttr(tableAttr, "file-name", TypeVarChar, 50);
+    appendAttr(tableAttr, "system-table", TypeInt, 4);
+
+    // initiate column attribute
+    appendAttr(columnAttr, "table-id", TypeInt, 4);
+    appendAttr(columnAttr, "column-name", TypeVarChar, 50);
+    appendAttr(columnAttr, "column-type", TypeInt, 4);
+    appendAttr(columnAttr, "column-length", TypeInt, 4);
+    appendAttr(columnAttr, "column-position", TypeInt, 4);
+};
 
 RelationManager::~RelationManager() = default;
 
@@ -20,9 +35,20 @@ RelationManager &RelationManager::operator=(const RelationManager &) = default;
 RC RelationManager::createCatalog() {
     // set tables and column attribute (hard coding)
     // insert tuple into table.tbl & columns.tbl, using insertRecord (thus we need to mock data manually)
+
+    RecordBasedFileManager::instance().createFile(TABLES_NAME);
+    RecordBasedFileManager::instance().createFile(COLUMNS_NAME);
+
+    RecordBasedFileManager::instance().openFile(TABLES_NAME, tableFileHandle);
+    RecordBasedFileManager::instance().openFile(COLUMNS_NAME, columnFileHandle);
+
+    RecordBasedFileManager::instance().insertRecord(tableFileHandle, tableAttr, data, rid);
+
+
     return -1;
 }
 
+// TODO: release fileHandle of table & column
 RC RelationManager::deleteCatalog() {
     // find files in table.tbl
     // delete all files
@@ -88,6 +114,24 @@ RC RelationManager::dropAttribute(const std::string &tableName, const std::strin
 RC RelationManager::addAttribute(const std::string &tableName, const Attribute &attr) {
     return -1;
 }
+
+void RelationManager::appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len) {
+    Attribute attr;
+    attr.name = std::move(name);
+    attr.type = type;
+    attr.length = len;
+    attrArr.push_back(attr);
+}
+
+void RelationManager::generateTableData(unsigned id, std::string tableName, std::string fileName) {
+
+}
+
+void RelationManager::generateColumnData(unsigned id, std::string name, std::string type,
+                                         unsigned length, unsigned position) {
+
+}
+
 
 
 

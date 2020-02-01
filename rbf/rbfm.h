@@ -107,6 +107,9 @@ public:
     // Read a record identified by the given rid.
     RC readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const RID &rid, void *data);
 
+    RC readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                  const RID &rid, void *data, bool isOutputRecord, unsigned &recordLength);
+
     // Print the record that is passed to this utility method.
     // This method will be mainly used for debugging/testing.
     // The format is as follows:
@@ -189,6 +192,8 @@ public:
     void readRIDFromRecord(void* record, RID &rid);
 
     void createRIDRecord(void *record, RID &rid);
+
+
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction

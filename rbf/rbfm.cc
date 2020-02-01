@@ -77,13 +77,23 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
 
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                       const RID &rid, void *data) {
+    unsigned recordLength;
+    return readRecord(fileHandle, recordDescriptor, rid, data, false, recordLength);
+
+}
+
+RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                                      const RID &rid, void *data, bool isOutputRecord, unsigned &recordLength) {
     unsigned pageNum = rid.pageNum;
     unsigned slotNum = rid.slotNum;
 
     void *pageData = malloc(PAGE_SIZE);
     fileHandle.readPage(pageNum, pageData);
 
-    void *record = malloc(PAGE_SIZE);
+    unsigned offset, length;
+    getOffsetAndLength(pageData, slotNum, offset, length);
+
+    void *record = malloc(length);
     if (readRecordFromPage(pageData, record, slotNum) == -1) {
         free(pageData);
         return -1;
@@ -96,10 +106,16 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
         RID redirectRID;
         getRIDFromRedirectedRecord(record, redirectRID);
         free(record);
-        return readRecord(fileHandle, recordDescriptor, redirectRID, data);
+        return readRecord(fileHandle, recordDescriptor, redirectRID, data, isOutputRecord, recordLength);
     } else {
-        convertRecordToData(record, data, recordDescriptor);
-        free(record);
+        if (isOutputRecord) {
+            recordLength = length;
+            memcpy((char *) data, (char *) record, length);
+            return 0;
+        } else {
+            convertRecordToData(record, data, recordDescriptor);
+            free(record);
+        }
     }
 
     return 0;
@@ -390,7 +406,72 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
 
 RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                          const RID &rid, const std::string &attributeName, void *data) {
-    return -1;
+    unsigned _;
+    unsigned size = recordDescriptor.size();
+    void * record = malloc(PAGE_SIZE);
+    readRecord(fileHandle, recordDescriptor, rid, record, true, _);
+
+    int *attrsExist = new int[size];
+    unsigned dirStartPos = UNSIGNED_SIZE + REDIRECT_INDICATOR_SIZE;
+    // implicit move nullIndicatorSize
+    getAttrExistArray(dirStartPos, attrsExist, record, size, true);
+
+    bool found = false;
+
+    unsigned dirPointerPos = dirStartPos;
+    bool isFirstAttr = true;
+    unsigned length;
+    unsigned offset;
+
+    for (unsigned i = 0; i < size; i++) {
+        if (attrsExist[i]) {
+            if (recordDescriptor[i].name == attributeName) {
+                unsigned targetDataEndPos;
+                memcpy(&targetDataEndPos, (char *) record + dirPointerPos, UNSIGNED_SIZE);
+
+                // calculate offset & length
+                if (isFirstAttr) {
+                    // if is the starting index, get the starting data offset
+                    // dataStartPos is the data start offset
+                    unsigned dataStartPos = dirStartPos;
+                    for (unsigned j = 0; j < size; j++) {
+                        if (attrsExist[j]) {
+                            dataStartPos += UNSIGNED_SIZE;
+                        } else {
+
+                        }
+                    }
+
+                    offset = dataStartPos;
+                    length = targetDataEndPos - dataStartPos;
+                } else {
+                    unsigned targetDataStartPos;
+                    memcpy(&targetDataStartPos, (char *) record + dirPointerPos - UNSIGNED_SIZE, UNSIGNED_SIZE);
+
+                    length = targetDataEndPos - targetDataStartPos;
+                    offset = targetDataStartPos;
+                }
+
+                // set found flag to true
+                found = true;
+            } else {
+                isFirstAttr = false;
+            }
+
+            // mv dir pointer fwd
+            dirPointerPos += UNSIGNED_SIZE;
+        } else {
+            // if attr not exist, do nothing
+        }
+    }
+
+    if (!found) {
+        return -1;
+    } else {
+        memcpy((char *) data, (char *) record + offset, length);
+    }
+
+    return 0;
 }
 
 RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -652,4 +733,5 @@ void RecordBasedFileManager::createRIDRecord(void *record, RID &rid) {
     memcpy((char *)record + REDIRECT_INDICATOR_SIZE, &rid.pageNum, UNSIGNED_SIZE);
     memcpy((char *) record + REDIRECT_INDICATOR_SIZE + UNSIGNED_SIZE, &rid.slotNum, UNSIGNED_SIZE);
 }
+
 
