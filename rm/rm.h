@@ -52,10 +52,13 @@ public:
     static FileHandle tableFileHandle;
     static FileHandle columnFileHandle;
 
+    // tableName -> fileName
     std::unordered_map<std::string, std::string> fileMap;
+    // tableName -> TableID
     std::unordered_map<std::string, int> idMap;
+    // tableName -> system
     std::unordered_map<std::string, bool> systemTableMap;
-
+    // tableName -> vector<Attribute>
     std::unordered_map<std::string, std::vector<Attribute>> attrMap;
 
     void appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len);
@@ -66,7 +69,7 @@ public:
 
     RC createTable(const std::string &tableName, const std::vector<Attribute> &attrs);
 
-    RC createTable(const std::string &tableName, const std::vector<Attribute> &attrs, bool isSystem);
+    RC createTable(const std::string &tableName, const std::vector<Attribute> &attrs, bool isSystemTable);
 
     RC deleteTable(const std::string &tableName);
 
@@ -95,9 +98,10 @@ public:
             const std::vector<std::string> &attributeNames, // a list of projected attributes
             RM_ScanIterator &rm_ScanIterator);
 
-    void generateTableData(unsigned id, std::string tableName, std::string fileName, void *data);
+    void generateTablesData(unsigned id, std::string tableName, std::string fileName, void *data,
+                            bool isSystemTable);
 
-    void generateColumnData(unsigned id, Attribute attr, unsigned position, void *data);
+    void generateColumnsData(unsigned id, Attribute attr, unsigned position, void *data);
 
     void scanTablesOrColumns(bool isTables);
 

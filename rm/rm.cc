@@ -16,18 +16,18 @@ RelationManager::RelationManager() {
     rbfm = &RecordBasedFileManager::instance();
 
 
-        // initiate table attribute
-        appendAttr(tableAttr, "table-id", TypeInt, 4);
-        appendAttr(tableAttr, "table-name", TypeVarChar, 50);
-        appendAttr(tableAttr, "file-name", TypeVarChar, 50);
-        appendAttr(tableAttr, "system-table", TypeInt, 4);
+    // initiate table attribute
+    appendAttr(tableAttr, "table-id", TypeInt, 4);
+    appendAttr(tableAttr, "table-name", TypeVarChar, 50);
+    appendAttr(tableAttr, "file-name", TypeVarChar, 50);
+    appendAttr(tableAttr, "system-table", TypeInt, 4);
 
-        // initiate column attribute
-        appendAttr(columnAttr, "table-id", TypeInt, 4);
-        appendAttr(columnAttr, "column-name", TypeVarChar, 50);
-        appendAttr(columnAttr, "column-type", TypeInt, 4);
-        appendAttr(columnAttr, "column-length", TypeInt, 4);
-        appendAttr(columnAttr, "column-position", TypeInt, 4);
+    // initiate column attribute
+    appendAttr(columnAttr, "table-id", TypeInt, 4);
+    appendAttr(columnAttr, "column-name", TypeVarChar, 50);
+    appendAttr(columnAttr, "column-type", TypeInt, 4);
+    appendAttr(columnAttr, "column-length", TypeInt, 4);
+    appendAttr(columnAttr, "column-position", TypeInt, 4);
 
     if (exists_test(TABLES_FILE_NAME)) {
         // read physical file into memory hashmap
@@ -66,7 +66,7 @@ RC RelationManager::createCatalog() {
 
 // TODO: release fileHandle of table & column
 RC RelationManager::deleteCatalog() {
-    // iterate hashMap, delete all files
+    // iterate hashMap, delete all files & hashmap
     return -1;
 }
 
@@ -74,23 +74,23 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
     return createTable(tableName, attrs, 0);
 }
 
-RC RelationManager::createTable(const std::string &tableName, const std::vector<Attribute> &attrs, bool isSystem) {
+RC RelationManager::createTable(const std::string &tableName, const std::vector<Attribute> &attrs, bool isSystemTable) {
     // insert table info into hashMap
     attrMap[tableName] = attrs;
     std::string fileName = tableName + ".tbl";
     fileMap[tableName] = fileName;
     idMap[tableName] = curTableID;
-    systemTableMap[tableName] = isSystem;
+    systemTableMap[tableName] = isSystemTable;
 
     // insert tuple into Table & Columns
     RID _;
     void* data = malloc(SM_BLOCK);
-    generateTableData(curTableID, tableName, fileName, data);
+    generateTablesData(curTableID, tableName, fileName, data, isSystemTable);
     insertTuple(TABLES_NAME, data, _);
 
     for (unsigned i = 0; i < attrs.size(); i++) {
         Attribute attr = attrs[i];
-        generateColumnData(curTableID, attr, i + 1, data);
+        generateColumnsData(curTableID, attr, i + 1, data);
         insertTuple(COLUMNS_NAME, data, _);
     }
 
@@ -157,11 +157,12 @@ void RelationManager::appendAttr(std::vector<Attribute> &attrArr, std::string na
     attrArr.push_back(attr);
 }
 
-void RelationManager::generateTableData(unsigned id, std::string tableName, std::string fileName, void *data) {
+void RelationManager::generateTablesData(unsigned id, std::string tableName, std::string fileName, void *data,
+                                         bool isSystemTable) {
 
 }
 
-void RelationManager::generateColumnData(unsigned id, Attribute attr, unsigned position, void *data) {
+void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned position, void *data) {
 
 }
 
