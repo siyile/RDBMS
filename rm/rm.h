@@ -3,25 +3,40 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "../rbf/rbfm.h"
 
 # define RM_EOF (-1)  // end of a scan operator
 
-# define TABLES_NAME "tables.tbl"
-# define COLUMNS_NAME "columns.tbl"
+# define TABLES_FILE_NAME "Tables.tbl"
+# define COLUMNS_FILE_NAME "Columns.tbl"
+# define TABLES_NAME "Tables"
+# define COLUMNS_NAME "Columns"
+# define SM_BLOCK 200
+
+#define SCAN_INIT_PAGE_NUM 1
+#define SCAN_INIT_SLOT_NUM 1
+#define NULL_STRING ""
 
 // RM_ScanIterator is an iterator to go through tuples
 class RM_ScanIterator {
 public:
-    RM_ScanIterator() = default;
+    RM_ScanIterator();
 
     ~RM_ScanIterator() = default;
 
-    // "data" follows the same format as RelationManager::insertTuple()
-    RC getNextTuple(RID &rid, void *data) { return RM_EOF; };
+    RBFM_ScanIterator rbfmsi;
 
-    RC close() { return -1; };
+//    std::vector<std::string> attributeNames;
+//    std::vector<Attribute> recordDescriptor;
+
+//    RID curRID;
+
+    // "data" follows the same format as RelationManager::insertTuple()
+    RC getNextTuple(RID &rid, void *data);
+
+    RC close();
 };
 
 // Relation Manager
@@ -29,11 +44,19 @@ class RelationManager {
 public:
     static RelationManager &instance();
 
+    int curTableID;
+
     static std::vector<Attribute> tableAttr;
     static std::vector<Attribute> columnAttr;
 
     static FileHandle tableFileHandle;
     static FileHandle columnFileHandle;
+
+    std::unordered_map<std::string, std::string> fileMap;
+    std::unordered_map<std::string, int> idMap;
+    std::unordered_map<std::string, bool> systemTableMap;
+
+    std::unordered_map<std::string, std::vector<Attribute>> attrMap;
 
     void appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len);
 
@@ -42,6 +65,8 @@ public:
     RC deleteCatalog();
 
     RC createTable(const std::string &tableName, const std::vector<Attribute> &attrs);
+
+    RC createTable(const std::string &tableName, const std::vector<Attribute> &attrs, bool isSystem);
 
     RC deleteTable(const std::string &tableName);
 
@@ -70,10 +95,15 @@ public:
             const std::vector<std::string> &attributeNames, // a list of projected attributes
             RM_ScanIterator &rm_ScanIterator);
 
-    void generateTableData(unsigned id, std::string tableName, std::string fileName);
+    void generateTableData(unsigned id, std::string tableName, std::string fileName, void *data);
 
-    void generateColumnData(unsigned id, std::string name, std:: string type, unsigned length,
-                            unsigned position);
+    void generateColumnData(unsigned id, Attribute attr, unsigned position, void *data);
+
+    void scanTablesOrColumns(bool isTables);
+
+    void parseTablesData(void* data);
+
+    void parseColumnsData(void* data);
 
 // Extra credit work (10 points)
     RC addAttribute(const std::string &tableName, const Attribute &attr);
@@ -88,6 +118,8 @@ protected:
     RelationManager(const RelationManager &);                           // Prevent construction by copying
     RelationManager &operator=(const RelationManager &);                // Prevent assignment
 
+private:
+    RecordBasedFileManager *rbfm;
 };
 
 #endif

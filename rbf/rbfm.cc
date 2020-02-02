@@ -474,12 +474,6 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vect
     return 0;
 }
 
-RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                const std::string &conditionAttribute, const CompOp compOp, const void *value,
-                                const std::vector<std::string> &attributeNames, RBFM_ScanIterator &rbfm_ScanIterator) {
-    return -1;
-}
-
 int RecordBasedFileManager::scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed) {
     for (unsigned i = 0; i < curPageNum; i++) {
         if (sizeNeed <= getFreeSpaceByPageNum(fileHandle, i)) {
@@ -734,4 +728,56 @@ void RecordBasedFileManager::createRIDRecord(void *record, RID &rid) {
     memcpy((char *) record + REDIRECT_INDICATOR_SIZE + UNSIGNED_SIZE, &rid.slotNum, UNSIGNED_SIZE);
 }
 
+RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                                const std::string &conditionAttribute, const CompOp compOp, const void *value,
+                                const std::vector<std::string> &attributeNames, RBFM_ScanIterator &rbfm_ScanIterator) {
+    rbfm_ScanIterator.fileHandle = &fileHandle;
+    rbfm_ScanIterator.rid.pageNum = SCAN_INIT_SLOT_NUM;
+    rbfm_ScanIterator.rid.slotNum = SCAN_INIT_PAGE_NUM;
+    rbfm_ScanIterator.attributeNames = attributeNames;
+    rbfm_ScanIterator.recordDescriptor = recordDescriptor;
+
+    return 0;
+}
+
+RBFM_ScanIterator::RBFM_ScanIterator() {
+    rbfm = &RecordBasedFileManager::instance();
+}
+
+RC RBFM_ScanIterator::getNextRecord(RID &nextRID, void *data) {
+    rbfm->readRecord(*fileHandle, recordDescriptor, rid, data);
+
+    unsigned totalPageNum = fileHandle->getNumberOfPages();
+    void* pageData = malloc(PAGE_SIZE);
+
+    // move slotNum one step forward
+    rid.slotNum += 1;
+
+    while (rid.pageNum <= totalPageNum) {
+        fileHandle->readPage(rid.pageNum, pageData);
+        unsigned totalSlot = rbfm->getTotalSlot(pageData);
+
+        while (rid.slotNum <= totalSlot) {
+            if (isCurRIDValid(data)) {
+                return 0;
+            } else {
+                rid.slotNum += 1;
+            }
+        }
+        rid.pageNum += 1;
+    }
+
+    free(pageData);
+    return RBFM_EOF;
+};
+
+RC RBFM_ScanIterator::close() { return -1; }
+
+bool RBFM_ScanIterator::isCurRIDValid(void *data) {
+    unsigned offset;
+    unsigned length;
+    rbfm->getOffsetAndLength(data, rid.slotNum, offset, length);
+
+    return length == 0;
+};
 

@@ -12,7 +12,8 @@
 #define UNSIGNED_SIZE 4
 #define REDIRECT_INDICATOR_SIZE 1
 #define RID_SIZE 9
-
+#define SCAN_INIT_PAGE_NUM 1
+#define SCAN_INIT_SLOT_NUM 1
 
 // Record ID
 typedef struct {
@@ -60,18 +61,30 @@ typedef enum {
 //  }
 //  rbfmScanIterator.close();
 
+class RecordBasedFileManager;
+
 class RBFM_ScanIterator {
 public:
-    RBFM_ScanIterator() = default;;
+    FileHandle *fileHandle;
+    std::vector<std::string> attributeNames;
+    std::vector<Attribute> recordDescriptor;
+    RID rid;
 
-    ~RBFM_ScanIterator() = default;;
+    RBFM_ScanIterator();
+
+    ~RBFM_ScanIterator() = default;
 
     // Never keep the results in the memory. When getNextRecord() is called,
     // a satisfying record needs to be fetched from the file.
     // "data" follows the same format as RecordBasedFileManager::insertRecord().
-    RC getNextRecord(RID &rid, void *data) { return RBFM_EOF; };
+    RC getNextRecord(RID &nextRID, void *data) ;
 
-    RC close() { return -1; };
+    RC close();
+
+    bool isCurRIDValid(void *data);
+
+private:
+    RecordBasedFileManager* rbfm;
 };
 
 class RecordBasedFileManager {
