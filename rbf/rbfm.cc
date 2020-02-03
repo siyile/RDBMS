@@ -49,7 +49,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
         initiateNewPage(fileHandle);
         targetPage = 0;
     } else {
-        if (getFreeSpaceByPageNum(fileHandle, curPage) <= spaceNeed) {
+        if (getFreeSpaceByPageNum(fileHandle, curPage) >= spaceNeed) {
             // current page have enough space
             targetPage = curPage;
         } else {
