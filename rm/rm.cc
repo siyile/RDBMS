@@ -16,18 +16,18 @@ RelationManager::RelationManager() {
     rbfm = &RecordBasedFileManager::instance();
 
 
-        // initiate table attribute
-        appendAttr(tableAttr, "table-id", TypeInt, 4);
-        appendAttr(tableAttr, "table-name", TypeVarChar, 50);
-        appendAttr(tableAttr, "file-name", TypeVarChar, 50);
-        appendAttr(tableAttr, "system-table", TypeInt, 4);
+    // initiate table attribute
+    appendAttr(tableAttr, "table-id", TypeInt, 4);
+    appendAttr(tableAttr, "table-name", TypeVarChar, 50);
+    appendAttr(tableAttr, "file-name", TypeVarChar, 50);
+    appendAttr(tableAttr, "system-table", TypeInt, 4);
 
-        // initiate column attribute
-        appendAttr(columnAttr, "table-id", TypeInt, 4);
-        appendAttr(columnAttr, "column-name", TypeVarChar, 50);
-        appendAttr(columnAttr, "column-type", TypeInt, 4);
-        appendAttr(columnAttr, "column-length", TypeInt, 4);
-        appendAttr(columnAttr, "column-position", TypeInt, 4);
+    // initiate column attribute
+    appendAttr(columnAttr, "table-id", TypeInt, 4);
+    appendAttr(columnAttr, "column-name", TypeVarChar, 50);
+    appendAttr(columnAttr, "column-type", TypeInt, 4);
+    appendAttr(columnAttr, "column-length", TypeInt, 4);
+    appendAttr(columnAttr, "column-position", TypeInt, 4);
 
     if (exists_test(TABLES_FILE_NAME)) {
         // read physical file into memory hashmap
