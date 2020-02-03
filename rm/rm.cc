@@ -139,15 +139,15 @@ RC RelationManager::readAttribute(const std::string &tableName, const RID &rid, 
     return -1;
 }
 
-// Extra credit work
-RC RelationManager::dropAttribute(const std::string &tableName, const std::string &attributeName) {
-    return -1;
-}
-
-// Extra credit work
-RC RelationManager::addAttribute(const std::string &tableName, const Attribute &attr) {
-    return -1;
-}
+////Extra credit work
+//RC RelationManager::dropAttribute(const std::string &tableName, const std::string &attributeName) {
+//    return -1;
+//}
+//
+//// Extra credit work
+//RC RelationManager::addAttribute(const std::string &tableName, const Attribute &attr) {
+//    return -1;
+//}
 
 void RelationManager::appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len) {
     Attribute attr;
@@ -159,11 +159,60 @@ void RelationManager::appendAttr(std::vector<Attribute> &attrArr, std::string na
 
 void RelationManager::generateTablesData(unsigned id, std::string tableName, std::string fileName, void *data,
                                          bool isSystemTable) {
+    unsigned size = TABLES_ATTRIBUTE_SIZE;
+    unsigned nullIndicatorSize = (size + 7) / 8;
+    //pos indicates current position
+    unsigned pos = 0;
+
+    //write null indicator into start position
+    unsigned nullIndicator = 0X0;
+    memcpy(data, &nullIndicator, nullIndicatorSize);
+    pos += nullIndicatorSize;
+
+    //write id into corresponding position
+    memcpy((char *) data + pos, &id, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    //write tableName into corresponding position
+    memcpy((char *) data + pos, &tableName, tableName.size());
+    pos += tableName.size();
+
+    //write fileName into corresponding position
+    memcpy((char *) data + pos, &fileName, fileName.size());
+    pos += fileName.size();
+
+    //write isSystemTable into corresponding position
+    memcpy((char *) data + pos, &isSystemTable, SYSTEM_INDICATOR_SIZE);
 
 }
 
 void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned position, void *data) {
+    unsigned size = COLUMNS_ATTRIBUTE_SIZE;
+    unsigned nullIndicatorSize = (size + 7) / 8;
+    //pos indicates current position
+    unsigned pos = 0;
 
+    unsigned nullIndicator = 0X00;
+    memcpy(data, &nullIndicator, nullIndicatorSize);
+    pos += nullIndicatorSize;
+
+    //write id into corresponding position
+    memcpy((char *) data + pos, &id, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    //write attr into corresponding position
+    memcpy((char *) data + pos, &attr.name, attr.name.size());
+    pos += attr.name.size();
+
+    memcpy((char *) data + pos, &attr.type, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+
+    memcpy((char *) data + pos, &attr.length, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    //write position into corresponding position
+    memcpy((char *) data + pos, &position, UNSIGNED_SIZE);
 }
 
 // totally using rbfm::scan

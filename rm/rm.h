@@ -19,6 +19,11 @@
 #define SCAN_INIT_SLOT_NUM 1
 #define NULL_STRING ""
 
+#define TABLES_ATTRIBUTE_SIZE 4
+#define COLUMNS_ATTRIBUTE_SIZE 5
+#define SYSTEM_INDICATOR_SIZE 1
+
+
 // RM_ScanIterator is an iterator to go through tuples
 class RM_ScanIterator {
 public:
