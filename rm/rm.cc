@@ -165,7 +165,7 @@ void RelationManager::generateTablesData(unsigned id, std::string tableName, std
     unsigned pos = 0;
 
     //write null indicator into start position
-    unsigned nullIndicator = 0X0;
+    unsigned nullIndicator = 0X00;
     memcpy(data, &nullIndicator, nullIndicatorSize);
     pos += nullIndicatorSize;
 
@@ -174,12 +174,32 @@ void RelationManager::generateTablesData(unsigned id, std::string tableName, std
     pos += UNSIGNED_SIZE;
 
     //write tableName into corresponding position
-    memcpy((char *) data + pos, &tableName, tableName.size());
-    pos += tableName.size();
+    ////如果varchar前面都要有长度的话
+    unsigned tableNameSize =  tableName.size();
+    memcpy((char *) data + pos, &tableNameSize, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    memcpy((char *) data + pos, &tableName, tableNameSize);
+    pos += tableNameSize;
+
+    ////如果varchar前面没有长度的话
+//
+//     memcpy((char *) data + pos, &tableName, tableName.size());
+//     pos += tableName.size();
 
     //write fileName into corresponding position
-    memcpy((char *) data + pos, &fileName, fileName.size());
-    pos += fileName.size();
+    ////如果varchar前面都要有长度的话
+    unsigned fileNameSize =  fileName.size();
+    memcpy((char *) data + pos, &fileNameSize, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    memcpy((char *) data + pos, &fileName, fileNameSize);
+    pos += fileNameSize;
+
+    ////如果varchar前面没有长度的话
+
+//    memcpy((char *) data + pos, &fileName, fileName.size());
+//    pos += fileName.size();
 
     //write isSystemTable into corresponding position
     memcpy((char *) data + pos, &isSystemTable, SYSTEM_INDICATOR_SIZE);
@@ -201,8 +221,17 @@ void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned 
     pos += UNSIGNED_SIZE;
 
     //write attr into corresponding position
-    memcpy((char *) data + pos, &attr.name, attr.name.size());
-    pos += attr.name.size();
+    ////如果varchar前面都要有长度的话
+    unsigned attrNameSize =  attr.name.size();
+    memcpy((char *) data + pos, &attrNameSize, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    memcpy((char *) data + pos, &attr.name, attrNameSize);
+    pos += attrNameSize;
+
+    ////如果varchar前面没有长度的话
+//    memcpy((char *) data + pos, &attr.name, attr.name.size());
+//    pos += attr.name.size();
 
     memcpy((char *) data + pos, &attr.type, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
@@ -254,11 +283,82 @@ void RelationManager::scanTablesOrColumns(bool isTables) {
 // convert data to table related hashmap
 void RelationManager::parseTablesData(void *data) {
 
+    unsigned id;
+    std::string tableName;
+    std::string fileName;
+    bool isSystemTable;
+
+    //pos start after null indicator
+    unsigned pos = UNSIGNED_SIZE;
+
+    //get id from corresponding position
+    memcpy(&id, (char *) data + pos,UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    //get tableName from corresponding position
+    ////怎么拿到tablename的长度啊 是每个varchar前面都有一个数是它的长度吗
+    unsigned tableNameLength;
+    memcpy(&tableNameLength, (char *) data + pos, INT_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    memcpy(&tableName, (char *) data + pos, tableNameLength);
+    pos += tableNameLength;
+
+    //get fileName from corresponding position
+    ////怎么拿到filename的长度啊 是每个varchar前面都有一个数是它的长度吗
+    unsigned fileNameLength;
+    memcpy(&fileNameLength, (char *) data + pos, INT_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    memcpy(&fileName, (char *) data + pos, fileNameLength);
+    pos += fileNameLength;
+
+    //get isSystemTable from corresponding position
+    memcpy(&isSystemTable, (char *) data + pos, SYSTEM_INDICATOR_SIZE);
+
+    fileName = tableName + ".tbl";
+    fileMap[tableName] = fileName;
+    idMap[tableName] = id;
+    systemTableMap[tableName] = isSystemTable;
 }
 
 // convert data to column related hashmap
 void RelationManager::parseColumnsData(void *data) {
 
+    unsigned id;
+    Attribute attr;
+    unsigned position;
+
+    //pos start after null indicator
+    unsigned pos = UNSIGNED_SIZE;
+
+    //get id from corresponding position
+    memcpy(&id, (char *) data + pos, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    std::string tableName;
+    ////怎么拿到tablename啊 是不是还需要一个key=id, value= tablename 的map
+
+    //write attr into corresponding position
+    ////怎么拿到attr.name的长度啊  是每个varchar前面都有一个数是它的长度吗 
+    unsigned attrNameLength;
+    memcpy(&attrNameLength, (char *) data + pos, INT_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    memcpy( &attr.name, (char *) data + pos, attr.name.size());
+    pos += attrNameLength;
+
+    memcpy(&attr.type, (char *) data + pos, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    memcpy(&attr.length, (char *) data + pos, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    //get position from corresponding position
+    memcpy( &position, (char *) data + pos, UNSIGNED_SIZE);
+
+    //add new attr into corresponding attribute vector
+    attrMap[tableName].push_back(attr);
 }
 
 RM_ScanIterator::RM_ScanIterator(){
