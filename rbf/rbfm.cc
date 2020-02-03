@@ -313,6 +313,8 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
         }
     }
 
+    std::cout << std::endl;
+
     return 0;
 }
 
