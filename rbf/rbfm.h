@@ -13,7 +13,7 @@
 #define REDIRECT_INDICATOR_SIZE 1
 #define RID_SIZE 9
 #define SCAN_INIT_PAGE_NUM 1
-#define SCAN_INIT_SLOT_NUM 1
+#define SCAN_INIT_SLOT_NUM 0
 
 // Record ID
 typedef struct {

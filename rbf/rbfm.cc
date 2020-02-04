@@ -30,7 +30,7 @@ RC RecordBasedFileManager::openFile(const std::string &fileName, FileHandle &fil
 }
 
 RC RecordBasedFileManager::closeFile(FileHandle &fileHandle) {
-    return  PagedFileManager::instance().closeFile(fileHandle);;
+    return  PagedFileManager::instance().closeFile(fileHandle);
 }
 
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -734,8 +734,8 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attrib
                                 const std::string &conditionAttribute, const CompOp compOp, const void *value,
                                 const std::vector<std::string> &attributeNames, RBFM_ScanIterator &rbfm_ScanIterator) {
     rbfm_ScanIterator.fileHandle = &fileHandle;
-    rbfm_ScanIterator.rid.pageNum = SCAN_INIT_SLOT_NUM;
-    rbfm_ScanIterator.rid.slotNum = SCAN_INIT_PAGE_NUM;
+    rbfm_ScanIterator.rid.pageNum = SCAN_INIT_PAGE_NUM;
+    rbfm_ScanIterator.rid.slotNum = SCAN_INIT_SLOT_NUM;
     rbfm_ScanIterator.attributeNames = attributeNames;
     rbfm_ScanIterator.recordDescriptor = recordDescriptor;
 
@@ -746,9 +746,7 @@ RBFM_ScanIterator::RBFM_ScanIterator() {
     rbfm = &RecordBasedFileManager::instance();
 }
 
-RC RBFM_ScanIterator::getNextRecord(RID &nextRID, void *data) {
-    rbfm->readRecord(*fileHandle, recordDescriptor, rid, data);
-
+RC RBFM_ScanIterator::getNextRecord(RID &curRID, void *data) {
     unsigned totalPageNum = fileHandle->getNumberOfPages();
     void* pageData = malloc(PAGE_SIZE);
 
@@ -761,6 +759,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &nextRID, void *data) {
 
         while (rid.slotNum <= totalSlot) {
             if (isCurRIDValid(data)) {
+                curRID.slotNum = rid.slotNum;
+                curRID.pageNum = rid.pageNum;
+                rbfm->readRecord(*fileHandle, recordDescriptor, rid, data);
                 return 0;
             } else {
                 rid.slotNum += 1;
@@ -773,13 +774,16 @@ RC RBFM_ScanIterator::getNextRecord(RID &nextRID, void *data) {
     return RBFM_EOF;
 };
 
-RC RBFM_ScanIterator::close() { return -1; }
+RC RBFM_ScanIterator::close() {
+    rbfm->closeFile(*fileHandle);
+    return 0;
+}
 
 bool RBFM_ScanIterator::isCurRIDValid(void *data) {
     unsigned offset;
     unsigned length;
     rbfm->getOffsetAndLength(data, rid.slotNum, offset, length);
 
-    return length == 0;
+    return length != 0;
 };
 

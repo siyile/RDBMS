@@ -13,6 +13,7 @@
 # define COLUMNS_FILE_NAME "Columns.tbl"
 # define TABLES_NAME "Tables"
 # define COLUMNS_NAME "Columns"
+# define EXT ".tbl"
 # define SM_BLOCK 200
 
 #define SCAN_INIT_PAGE_NUM 1
@@ -21,7 +22,14 @@
 
 #define TABLES_ATTRIBUTE_SIZE 4
 #define COLUMNS_ATTRIBUTE_SIZE 5
-#define SYSTEM_INDICATOR_SIZE 1
+#define SYSTEM_INDICATOR_SIZE 4
+
+typedef enum {
+    INSERT = 0,
+    DELETE,
+    UPDATE,
+    PRINT,
+} RBFM_OP;
 
 
 // RM_ScanIterator is an iterator to go through tuples
@@ -32,11 +40,6 @@ public:
     ~RM_ScanIterator() = default;
 
     RBFM_ScanIterator rbfmsi;
-
-//    std::vector<std::string> attributeNames;
-//    std::vector<Attribute> recordDescriptor;
-
-//    RID curRID;
 
     // "data" follows the same format as RelationManager::insertTuple()
     RC getNextTuple(RID &rid, void *data);
@@ -49,7 +52,7 @@ class RelationManager {
 public:
     static RelationManager &instance();
 
-    int curTableID;
+    unsigned curTableID;
 
     static std::vector<Attribute> tableAttr;
     static std::vector<Attribute> columnAttr;
@@ -60,11 +63,12 @@ public:
     // tableName -> fileName
     std::unordered_map<std::string, std::string> fileMap;
     // tableName -> TableID
-    std::unordered_map<std::string, int> idMap;
+    std::unordered_map<std::string, unsigned> idMap;
     // TableID -> tableName
-    std::unordered_map<int, std::string> tableMap;
+    std::unordered_map<unsigned, std::string> tableMap;
     // tableName -> system
     std::unordered_map<std::string, bool> systemTableMap;
+
     // tableName -> vector<Attribute>
     std::unordered_map<std::string, std::vector<Attribute>> attrMap;
 
@@ -110,11 +114,12 @@ public:
 
     void generateColumnsData(unsigned id, Attribute attr, unsigned position, void *data);
 
-    void scanTablesOrColumns(bool isTables);
+    void initScanTablesOrColumns(bool isTables);
 
-    void parseTablesData(void* data);
+    void parseTablesData(void *data, std::string &tableName, std::string &fileName, unsigned int &id,
+                         bool &isSystemTable);
 
-    void parseColumnsData(void* data);
+    void parseColumnsData(void *data, unsigned int &id, Attribute &attr, unsigned &position);
 
 // Extra credit work (10 points)
     RC addAttribute(const std::string &tableName, const Attribute &attr);
