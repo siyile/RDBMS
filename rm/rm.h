@@ -61,6 +61,8 @@ public:
     std::unordered_map<std::string, std::string> fileMap;
     // tableName -> TableID
     std::unordered_map<std::string, int> idMap;
+    // TableID -> tableName
+    std::unordered_map<int, std::string> tableMap;
     // tableName -> system
     std::unordered_map<std::string, bool> systemTableMap;
     // tableName -> vector<Attribute>
