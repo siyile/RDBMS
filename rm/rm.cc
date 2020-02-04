@@ -80,6 +80,7 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
     std::string fileName = tableName + ".tbl";
     fileMap[tableName] = fileName;
     idMap[tableName] = curTableID;
+    tableMap[curTableID] = tableName;
     systemTableMap[tableName] = isSystemTable;
 
     // insert tuple into Table & Columns
@@ -175,23 +176,22 @@ void RelationManager::generateTablesData(unsigned id, std::string tableName, std
 
     //write tableName into corresponding position
     unsigned tableNameSize =  tableName.size();
-    memcpy((char *) data + pos, &tableNameSize, UNSIGNED_SIZE);
+    memcpy((char *) data + pos, (char *) &tableNameSize, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) data + pos, &tableName, tableNameSize);
+    memcpy((char *) data + pos, (char *) &tableName, tableNameSize);
     pos += tableNameSize;
 
     //write fileName into corresponding position
     unsigned fileNameSize =  fileName.size();
-    memcpy((char *) data + pos, &fileNameSize, UNSIGNED_SIZE);
+    memcpy((char *) data + pos, (char *) &fileNameSize, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) data + pos, &fileName, fileNameSize);
+    memcpy((char *) data + pos, (char *) &fileName, fileNameSize);
     pos += fileNameSize;
 
     //write isSystemTable into corresponding position
-    memcpy((char *) data + pos, &isSystemTable, SYSTEM_INDICATOR_SIZE);
-
+    memcpy((char *) data + pos, (char *) &isSystemTable, SYSTEM_INDICATOR_SIZE);
 }
 
 void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned position, void *data) {
@@ -200,7 +200,7 @@ void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned 
     //pos indicates current position
     unsigned pos = 0;
 
-    unsigned nullIndicator = 0X00;
+    unsigned nullIndicator = 0x00;
     memcpy(data, &nullIndicator, nullIndicatorSize);
     pos += nullIndicatorSize;
 
@@ -210,21 +210,21 @@ void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned 
 
     //write attr into corresponding position
     unsigned attrNameSize =  attr.name.size();
-    memcpy((char *) data + pos, &attrNameSize, UNSIGNED_SIZE);
+    memcpy((char *) data + pos, (char *) &attrNameSize, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) data + pos, &attr.name, attrNameSize);
+    memcpy((char *) data + pos, (char *) &attr.name, attrNameSize);
     pos += attrNameSize;
 
-    memcpy((char *) data + pos, &attr.type, UNSIGNED_SIZE);
+    memcpy((char *) data + pos, (char *) &attr.type, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
 
-    memcpy((char *) data + pos, &attr.length, UNSIGNED_SIZE);
+    memcpy((char *) data + pos, (char *) &attr.length, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
     //write position into corresponding position
-    memcpy((char *) data + pos, &position, UNSIGNED_SIZE);
+    memcpy((char *) data + pos, (char *) &position, UNSIGNED_SIZE);
 }
 
 // totally using rbfm::scan
@@ -260,13 +260,19 @@ void RelationManager::scanTablesOrColumns(bool isTables) {
             parseColumnsData(data);
         }
     }
+
+    // after scan table set current tableID + 1
+    if (isTables) {
+        curTableID += 1;
+    }
+
     free(data);
 }
 
 // convert data to table related hashmap
 void RelationManager::parseTablesData(void *data) {
 
-    unsigned id;
+    int id;
     std::string tableName;
     std::string fileName;
     bool isSystemTable;
@@ -275,32 +281,36 @@ void RelationManager::parseTablesData(void *data) {
     unsigned pos = UNSIGNED_SIZE;
 
     //get id from corresponding position
-    memcpy(&id, (char *) data + pos,UNSIGNED_SIZE);
+    memcpy((char *) &id, (char *) data + pos,UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
     //get tableName from corresponding position
     unsigned tableNameLength;
-    memcpy(&tableNameLength, (char *) data + pos, INT_SIZE);
+    memcpy((char *) &tableNameLength, (char *) data + pos, INT_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy(&tableName, (char *) data + pos, tableNameLength);
+    memcpy((char *) &tableName, (char *) data + pos, tableNameLength);
     pos += tableNameLength;
 
     //get fileName from corresponding position
     unsigned fileNameLength;
-    memcpy(&fileNameLength, (char *) data + pos, INT_SIZE);
+    memcpy((char *) &fileNameLength, (char *) data + pos, INT_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy(&fileName, (char *) data + pos, fileNameLength);
+    memcpy((char *) &fileName, (char *) data + pos, fileNameLength);
     pos += fileNameLength;
 
     //get isSystemTable from corresponding position
-    memcpy(&isSystemTable, (char *) data + pos, SYSTEM_INDICATOR_SIZE);
+    memcpy((char *) &isSystemTable, (char *) data + pos, SYSTEM_INDICATOR_SIZE);
 
     fileName = tableName + ".tbl";
     fileMap[tableName] = fileName;
     idMap[tableName] = id;
+    tableMap[id] = tableName;
     systemTableMap[tableName] = isSystemTable;
+
+    // prepare to get the max tableID
+    curTableID = std::max(curTableID, id);
 }
 
 // convert data to column related hashmap
@@ -314,28 +324,27 @@ void RelationManager::parseColumnsData(void *data) {
     unsigned pos = UNSIGNED_SIZE;
 
     //get id from corresponding position
-    memcpy(&id, (char *) data + pos, UNSIGNED_SIZE);
+    memcpy((char *) &id, (char *) data + pos, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
-    std::string tableName;
-    ////怎么拿到tablename啊 是不是还需要一个key=id, value= tablename 的map
+    std::string tableName = tableMap[id];
 
     //write attr into corresponding position
     unsigned attrNameLength;
-    memcpy(&attrNameLength, (char *) data + pos, INT_SIZE);
+    memcpy((char *) &attrNameLength, (char *) data + pos, INT_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy( &attr.name, (char *) data + pos, attr.name.size());
+    memcpy((char *) &attr.name, (char *) data + pos, attr.name.size());
     pos += attrNameLength;
 
-    memcpy(&attr.type, (char *) data + pos, UNSIGNED_SIZE);
+    memcpy((char *) &attr.type, (char *) data + pos, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy(&attr.length, (char *) data + pos, UNSIGNED_SIZE);
+    memcpy((char *) &attr.length, (char *) data + pos, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
     //get position from corresponding position
-    memcpy( &position, (char *) data + pos, UNSIGNED_SIZE);
+    memcpy((char *) &position, (char *) data + pos, UNSIGNED_SIZE);
 
     //add new attr into corresponding attribute vector
     attrMap[tableName].push_back(attr);
