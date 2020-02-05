@@ -425,9 +425,12 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vect
     unsigned length;
     unsigned offset;
 
+    AttrType attrType;
+
     for (unsigned i = 0; i < size; i++) {
         if (attrsExist[i]) {
             if (recordDescriptor[i].name == attributeName) {
+                attrType = recordDescriptor[i].type;
                 unsigned targetDataEndPos;
                 memcpy(&targetDataEndPos, (char *) record + dirPointerPos, UNSIGNED_SIZE);
 
@@ -467,10 +470,20 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vect
         }
     }
 
+    // we need to use the null indicator at the front of return data
     if (!found) {
-        return -1;
+        unsigned char nullIndicator = 0x80;
+        memcpy(data, &nullIndicator, UNSIGNED_CHAR_SIZE);
     } else {
-        memcpy((char *) data, (char *) record + offset, length);
+        unsigned char nullIndicator = 0x00;
+        memcpy(data, &nullIndicator, UNSIGNED_CHAR_SIZE);
+        unsigned pos = UNSIGNED_CHAR_SIZE;
+        // if type is varchar, add length before data
+        if (attrType == TypeVarChar) {
+            memcpy((char *) data + pos, &length, UNSIGNED_SIZE);
+            pos += length;
+        }
+        memcpy((char *)data + pos, (char *) record + offset, length);
     }
 
     return 0;
@@ -758,10 +771,14 @@ RC RBFM_ScanIterator::getNextRecord(RID &curRID, void *data) {
         unsigned totalSlot = rbfm->getTotalSlot(pageData);
 
         while (rid.slotNum <= totalSlot) {
-            if (isCurRIDValid(data)) {
+            if (isCurRIDValid(pageData)) {
                 curRID.slotNum = rid.slotNum;
                 curRID.pageNum = rid.pageNum;
-                rbfm->readRecord(*fileHandle, recordDescriptor, rid, data);
+                if (recordDescriptor.size() == attributeNames.size()) {
+                    rbfm->readRecord(*fileHandle, recordDescriptor, rid, data);
+                } else {
+                    
+                }
                 return 0;
             } else {
                 rid.slotNum += 1;

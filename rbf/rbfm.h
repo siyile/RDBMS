@@ -9,10 +9,11 @@
 #define DICT_SIZE 8
 #define INIT_FREE_SPACE 4088
 #define INT_SIZE 4
+#define UNSIGNED_CHAR_SIZE 1
 #define UNSIGNED_SIZE 4
 #define REDIRECT_INDICATOR_SIZE 1
 #define RID_SIZE 9
-#define SCAN_INIT_PAGE_NUM 1
+#define SCAN_INIT_PAGE_NUM 0
 #define SCAN_INIT_SLOT_NUM 0
 
 // Record ID

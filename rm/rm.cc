@@ -1,6 +1,7 @@
 #include "rm.h"
 #include <sys/stat.h>
 #include <utility>
+#include <iostream>
 
 inline bool exists_test (const std::string& name) {
     struct stat buffer;
@@ -28,6 +29,12 @@ RelationManager::RelationManager() {
     appendAttr(columnAttr, "column-length", TypeInt, 4);
     appendAttr(columnAttr, "column-position", TypeInt, 4);
 
+    tableNameToAttrMap[TABLES_NAME] = tableAttr;
+    tableNameToAttrMap[COLUMNS_NAME] = columnAttr;
+
+    tableNameToFileMap[TABLES_NAME] = TABLES_FILE_NAME;
+    tableNameToFileMap[COLUMNS_NAME] = COLUMNS_FILE_NAME;
+
     if (exists_test(TABLES_FILE_NAME)) {
         // read physical file into memory hashmap
         initScanTablesOrColumns(true);
@@ -53,7 +60,7 @@ RC RelationManager::createCatalog() {
     // insert tuple into table.tbl & columns.tbl, using insertRecord (thus we need to mock data manually)
 
     // if already exist
-    if (!rbfm->createFile(TABLES_NAME) || !rbfm->createFile(COLUMNS_NAME)) {
+    if (rbfm->createFile(TABLES_FILE_NAME) || rbfm->createFile(COLUMNS_FILE_NAME)) {
         return -1;
     }
 
@@ -63,19 +70,21 @@ RC RelationManager::createCatalog() {
     return 0;
 }
 
-// TODO: release fileHandle of table & column
 RC RelationManager::deleteCatalog() {
+    rbfm->destroyFile(TABLES_FILE_NAME);
+    rbfm->destroyFile(COLUMNS_FILE_NAME);
+
     // delete all files
-    for (std::pair<std::string, std::string> element : fileMap) {
+    for (std::pair<std::string, std::string> element : tableNameToFileMap) {
         rbfm->destroyFile(element.second);
     }
 
     // clear all hashmap
-    fileMap.clear();
-    idMap.clear();
-    tableMap.clear();
-    systemTableMap.clear();
-    attrMap.clear();
+    tableNameToFileMap.clear();
+    tableNameToIdMap.clear();
+    idToTableNameMap.clear();
+    tableNameToIsSystemTableMap.clear();
+    tableNameToAttrMap.clear();
 
     return 0;
 }
@@ -86,12 +95,14 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
 
 RC RelationManager::createTable(const std::string &tableName, const std::vector<Attribute> &attrs, bool isSystemTable) {
     // insert table info into hashMap
-    attrMap[tableName] = attrs;
-    std::string fileName = tableName + ".tbl";
-    fileMap[tableName] = fileName;
-    idMap[tableName] = curTableID;
-    tableMap[curTableID] = tableName;
-    systemTableMap[tableName] = isSystemTable;
+    std::string fileName = tableName + EXT;
+    if (tableNameToAttrMap.find(tableName) == tableNameToAttrMap.end()) {
+        tableNameToAttrMap[tableName] = attrs;
+        tableNameToFileMap[tableName] = fileName;
+    }
+    tableNameToIdMap[tableName] = curTableID;
+    idToTableNameMap[curTableID] = tableName;
+    tableNameToIsSystemTableMap[tableName] = isSystemTable;
 
     // insert tuple into Table & Columns
     RID _;
@@ -105,6 +116,11 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
         insertTuple(COLUMNS_NAME, data, _);
     }
 
+    // create file if not exist
+    if (!exists_test(fileName)) {
+        rbfm->createFile(fileName);
+    }
+
     curTableID++;
     free(data);
 
@@ -112,7 +128,10 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
 }
 
 RC RelationManager::deleteTable(const std::string &tableName) {
-    bool isSystemTable = systemTableMap[tableName];
+    if (tableNameToFileMap.count(tableName) == 0) {
+        return -1;
+    }
+    bool isSystemTable = tableNameToIsSystemTableMap[tableName];
     if (isSystemTable) {
         return -1;
     }
@@ -136,11 +155,11 @@ RC RelationManager::deleteTable(const std::string &tableName) {
         }
     }
 
-    unsigned id = idMap[tableName];
+    unsigned id = tableNameToIdMap[tableName];
     // delete column tuple in COLUMNS
     RM_ScanIterator rmsi_column;
     scan(COLUMNS_NAME, NULL_STRING, NO_OP, nullptr, attributeNames, rmsi_column);
-    while (rmsi_table.getNextTuple(rid, data) != RM_EOF) {
+    while (rmsi_column.getNextTuple(rid, data) != RM_EOF) {
         std::string tupleTableName, fileName;
         Attribute attr;
         unsigned tupleID, position;
@@ -153,38 +172,38 @@ RC RelationManager::deleteTable(const std::string &tableName) {
     }
     free(data);
 
-    std::string fileName = fileMap[tableName];
+    std::string fileName = tableNameToFileMap[tableName];
     rbfm->destroyFile(fileName);
-    fileMap.erase(tableName);
+    tableNameToFileMap.erase(tableName);
 
-    idMap.erase(tableName);
-    tableMap.erase(id);
+    tableNameToIdMap.erase(tableName);
+    idToTableNameMap.erase(id);
 
-    systemTableMap.erase(tableName);
-    attrMap.erase(tableName);
+    tableNameToIsSystemTableMap.erase(tableName);
+    tableNameToAttrMap.erase(tableName);
 
     return 0;
 }
 
 RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attribute> &attrs) {
     // if attr not exist
-    if (attrMap.count(tableName) == 0) {
+    if (tableNameToAttrMap.count(tableName) == 0) {
         return -1;
     }
-    attrs = attrMap[tableName];
+    attrs = tableNameToAttrMap[tableName];
     return 0;
 }
 
 RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) {
-    if (attrMap.count(tableName) == 0) {
+    if (tableNameToAttrMap.count(tableName) == 0) {
         return -1;
     }
 
-    std::string fileName = fileMap[tableName];
+    std::string fileName = tableNameToFileMap[tableName];
     FileHandle fileHandle;
     rbfm->openFile(fileName, fileHandle);
 
-    auto attrs = attrMap[tableName];
+    auto attrs = tableNameToAttrMap[tableName];
     if (rbfm->insertRecord(fileHandle, attrs, data, rid) != 0) {
         rbfm->closeFile(fileHandle);
         return -1;
@@ -195,15 +214,15 @@ RC RelationManager::insertTuple(const std::string &tableName, const void *data, 
 }
 
 RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
-    if (attrMap.count(tableName) == 0) {
+    if (tableNameToAttrMap.count(tableName) == 0) {
         return -1;
     }
 
-    std::string fileName = fileMap[tableName];
+    std::string fileName = tableNameToFileMap[tableName];
     FileHandle fileHandle;
     rbfm->openFile(fileName, fileHandle);
 
-    auto attrs = attrMap[tableName];
+    auto attrs = tableNameToAttrMap[tableName];
     if (rbfm->deleteRecord(fileHandle, attrs, rid) != 0) {
         rbfm->closeFile(fileHandle);
         return -1;
@@ -214,15 +233,15 @@ RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
 }
 
 RC RelationManager::updateTuple(const std::string &tableName, const void *data, const RID &rid) {
-    if (attrMap.count(tableName) == 0) {
+    if (tableNameToAttrMap.count(tableName) == 0) {
         return -1;
     }
 
-    std::string fileName = fileMap[tableName];
+    std::string fileName = tableNameToFileMap[tableName];
     FileHandle fileHandle;
     rbfm->openFile(fileName, fileHandle);
 
-    auto attrs = attrMap[tableName];
+    auto attrs = tableNameToAttrMap[tableName];
     if (rbfm->updateRecord(fileHandle, attrs, data, rid) != 0) {
         rbfm->closeFile(fileHandle);
         return -1;
@@ -233,15 +252,15 @@ RC RelationManager::updateTuple(const std::string &tableName, const void *data, 
 }
 
 RC RelationManager::readTuple(const std::string &tableName, const RID &rid, void *data) {
-    if (attrMap.count(tableName) == 0) {
+    if (tableNameToAttrMap.count(tableName) == 0) {
         return -1;
     }
 
-    std::string fileName = fileMap[tableName];
+    std::string fileName = tableNameToFileMap[tableName];
     FileHandle fileHandle;
     rbfm->openFile(fileName, fileHandle);
 
-    auto attrs = attrMap[tableName];
+    auto attrs = tableNameToAttrMap[tableName];
     if (rbfm->readRecord(fileHandle, attrs, rid, data) != 0) {
         rbfm->closeFile(fileHandle);
         return -1;
@@ -257,15 +276,15 @@ RC RelationManager::printTuple(const std::vector<Attribute> &attrs, const void *
 
 RC RelationManager::readAttribute(const std::string &tableName, const RID &rid, const std::string &attributeName,
                                   void *data) {
-    if (attrMap.count(tableName) == 0) {
+    if (tableNameToAttrMap.count(tableName) == 0) {
         return -1;
     }
 
-    std::string fileName = fileMap[tableName];
+    std::string fileName = tableNameToFileMap[tableName];
     FileHandle fileHandle;
     rbfm->openFile(fileName, fileHandle);
 
-    auto attrs = attrMap[tableName];
+    auto attrs = tableNameToAttrMap[tableName];
     if (rbfm->readAttribute(fileHandle, attrs, rid, attributeName, data) != 0) {
         rbfm->closeFile(fileHandle);
         return -1;
@@ -293,12 +312,12 @@ void RelationManager::generateTablesData(unsigned id, std::string tableName, std
     unsigned pos = 0;
 
     //write null indicator into start position
-    unsigned nullIndicator = 0X00;
-    memcpy(data, &nullIndicator, nullIndicatorSize);
-    pos += nullIndicatorSize;
+    unsigned char nullIndicator = 0x00;
+    memcpy(data, &nullIndicator, nullIndicatorSize * NULL_INDICATOR_UNIT_SIZE);
+    pos += nullIndicatorSize * NULL_INDICATOR_UNIT_SIZE;
 
     //write id into corresponding position
-    memcpy((char *) data + pos, (char *) &id, UNSIGNED_SIZE);
+    memcpy((char *) data + pos, &id, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
     //write tableName into corresponding position
@@ -328,9 +347,9 @@ void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned 
     //pos indicates current position
     unsigned pos = 0;
 
-    unsigned nullIndicator = 0x00;
-    memcpy(data, &nullIndicator, nullIndicatorSize);
-    pos += nullIndicatorSize;
+    unsigned char nullIndicator = 0x00;
+    memcpy(data, &nullIndicator, nullIndicatorSize * NULL_INDICATOR_UNIT_SIZE);
+    pos += nullIndicatorSize * NULL_INDICATOR_UNIT_SIZE;
 
     //write id into corresponding position
     memcpy((char *) data + pos, &id, UNSIGNED_SIZE);
@@ -369,10 +388,10 @@ void RelationManager::initScanTablesOrColumns(bool isTables) {
             parseTablesData(data, tableName, fileName, id, isSystemTable);
 
             // write into hashMap
-            fileMap[tableName] = fileName;
-            idMap[tableName] = id;
-            tableMap[id] = tableName;
-            systemTableMap[tableName] = isSystemTable;
+            tableNameToFileMap[tableName] = fileName;
+            tableNameToIdMap[tableName] = id;
+            idToTableNameMap[id] = tableName;
+            tableNameToIsSystemTableMap[tableName] = isSystemTable;
 
             // prepare to get the max tableID
             curTableID = std::max(curTableID, id);
@@ -383,8 +402,14 @@ void RelationManager::initScanTablesOrColumns(bool isTables) {
             parseColumnsData(data, id, attr, position);
 
             //add new attr into corresponding attribute vector
-            std::string tableName = tableMap[id];
-            attrMap[tableName].push_back(attr);
+            std::string tableName = idToTableNameMap[id];
+            if (tableName != TABLES_NAME && tableName != COLUMNS_NAME) {
+                if (tableNameToAttrMap.find(tableName) == tableNameToAttrMap.end()) {
+                    std::vector<Attribute> vector;
+                    tableNameToAttrMap[tableName] = vector;
+                }
+                tableNameToAttrMap[tableName].push_back(attr);
+            }
         }
     }
 
@@ -400,7 +425,7 @@ void RelationManager::initScanTablesOrColumns(bool isTables) {
 void RelationManager::parseTablesData(void *data, std::string &tableName, std::string &fileName, unsigned int &id,
                                       bool &isSystemTable) {
     //pos start after null indicator
-    unsigned pos = UNSIGNED_SIZE;
+    unsigned pos = NULL_INDICATOR_UNIT_SIZE;
 
     //get id from corresponding position
     memcpy(&id, (char *) data + pos,UNSIGNED_SIZE);
@@ -431,7 +456,7 @@ void RelationManager::parseTablesData(void *data, std::string &tableName, std::s
 // convert data to column related hashmap
 void RelationManager::parseColumnsData(void *data, unsigned int &id, Attribute &attr, unsigned &position) {
     //pos start after null indicator
-    unsigned pos = UNSIGNED_SIZE;
+    unsigned pos = NULL_INDICATOR_UNIT_SIZE;
 
     //get id from corresponding position
     memcpy((char *) &id, (char *) data + pos, UNSIGNED_SIZE);
@@ -442,7 +467,7 @@ void RelationManager::parseColumnsData(void *data, unsigned int &id, Attribute &
     memcpy((char *) &attrNameLength, (char *) data + pos, INT_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) &attr.name, (char *) data + pos, attr.name.size());
+    memcpy((char *) &attr.name, (char *) data + pos, attrNameLength);
     pos += attrNameLength;
 
     memcpy((char *) &attr.type, (char *) data + pos, UNSIGNED_SIZE);
@@ -462,13 +487,12 @@ RC RelationManager::scan(const std::string &tableName,
                          const void *value,
                          const std::vector<std::string> &attributeNames,
                          RM_ScanIterator &rm_ScanIterator) {
-    std::string fileName = fileMap[tableName];
-    FileHandle fileHandle;
-    rbfm->openFile(fileName, fileHandle);
+    std::string fileName = tableNameToFileMap[tableName];
+    rbfm->openFile(fileName, rm_ScanIterator.fileHandle);
 
-    std::vector<Attribute> recordDescriptor = attrMap[tableName];
+    std::vector<Attribute> recordDescriptor = tableNameToAttrMap[tableName];
 
-    rbfm->scan(fileHandle, recordDescriptor, conditionAttribute, compOp, value, attributeNames, rm_ScanIterator.rbfmsi);
+    rbfm->scan(rm_ScanIterator.fileHandle, recordDescriptor, conditionAttribute, compOp, value, attributeNames, rm_ScanIterator.rbfmsi);
 
     return 0;
 }

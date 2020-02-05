@@ -14,15 +14,14 @@
 # define TABLES_NAME "Tables"
 # define COLUMNS_NAME "Columns"
 # define EXT ".tbl"
-# define SM_BLOCK 200
+# define SM_BLOCK 500
 
-#define SCAN_INIT_PAGE_NUM 1
-#define SCAN_INIT_SLOT_NUM 1
 #define NULL_STRING ""
 
 #define TABLES_ATTRIBUTE_SIZE 4
 #define COLUMNS_ATTRIBUTE_SIZE 5
 #define SYSTEM_INDICATOR_SIZE 4
+#define NULL_INDICATOR_UNIT_SIZE 1
 
 typedef enum {
     INSERT = 0,
@@ -40,6 +39,7 @@ public:
     ~RM_ScanIterator() = default;
 
     RBFM_ScanIterator rbfmsi;
+    FileHandle fileHandle;
 
     // "data" follows the same format as RelationManager::insertTuple()
     RC getNextTuple(RID &rid, void *data);
@@ -54,23 +54,20 @@ public:
 
     unsigned curTableID;
 
-    static std::vector<Attribute> tableAttr;
-    static std::vector<Attribute> columnAttr;
-
-    static FileHandle tableFileHandle;
-    static FileHandle columnFileHandle;
+    std::vector<Attribute> tableAttr;
+    std::vector<Attribute> columnAttr;
 
     // tableName -> fileName
-    std::unordered_map<std::string, std::string> fileMap;
+    std::unordered_map<std::string, std::string> tableNameToFileMap;
     // tableName -> TableID
-    std::unordered_map<std::string, unsigned> idMap;
+    std::unordered_map<std::string, unsigned> tableNameToIdMap;
     // TableID -> tableName
-    std::unordered_map<unsigned, std::string> tableMap;
+    std::unordered_map<unsigned, std::string> idToTableNameMap;
     // tableName -> system
-    std::unordered_map<std::string, bool> systemTableMap;
+    std::unordered_map<std::string, bool> tableNameToIsSystemTableMap;
 
     // tableName -> vector<Attribute>
-    std::unordered_map<std::string, std::vector<Attribute>> attrMap;
+    std::unordered_map<std::string, std::vector<Attribute>> tableNameToAttrMap;
 
     void appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len);
 
