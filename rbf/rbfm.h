@@ -198,7 +198,8 @@ public:
 
     void convertRecordToData(void *record, void *data, const std::vector<Attribute> &recordDescriptor);
 
-    void leftShiftRecord(void *data, unsigned startOffset, unsigned int length);
+    void leftShiftRecord(void *data, unsigned startOffset, unsigned oldLength,
+                         unsigned int newLength);
 
     void rightShiftRecord(void *data, unsigned startOffset, unsigned int length,
                           unsigned int updatedLength);

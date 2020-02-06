@@ -270,7 +270,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
     }
 
     // left shift
-    leftShiftRecord(data, offset, length);
+    leftShiftRecord(data, offset, length, 0);
 
     // set new free space & total slotNum remain unchanged
     unsigned freeSpace = getFreeSpace(data);
@@ -378,7 +378,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
         writeRecord(pageData, newRecord, offset, newLength);
         setOffsetAndLength(pageData, slotNum, offset, newLength);
 
-        leftShiftRecord(pageData, offset, lengthGap);
+        leftShiftRecord(pageData, offset, oldLength, newLength);
         setSpace(pageData, freeSpace + lengthGap);
 
         fileHandle.writePage(pageNum, pageData);
@@ -401,7 +401,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
             // if there is not enough space for new record
 
             // set up current page
-            leftShiftRecord(pageData, offset, oldLength - RID_SIZE);
+            leftShiftRecord(pageData, offset, oldLength, RID_SIZE);
             freeSpace += oldLength - RID_SIZE;
             setOffsetAndLength(pageData, slotNum, offset, RID_SIZE);
             setSpace(pageData, freeSpace);
@@ -701,24 +701,27 @@ void RecordBasedFileManager::getOffsetAndLength(void *data, unsigned slotNum, un
     memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
 }
 
-void RecordBasedFileManager::leftShiftRecord(void *data, unsigned startOffset, unsigned int length) {
+void RecordBasedFileManager::leftShiftRecord(void *data, unsigned startOffset, unsigned oldLength,
+                                             unsigned int newLength) {
     unsigned totalSlot = getTotalSlot(data);
+
+    unsigned lengthGap = oldLength - newLength;
 
     for (unsigned i = 1; i <= totalSlot; i++) {
         unsigned recordOffset;
         unsigned recordLength;
         getOffsetAndLength(data, i, recordOffset, recordLength);
         if (recordOffset > startOffset) {
-            recordOffset -= length;
+            recordOffset -= lengthGap;
             setOffsetAndLength(data, i, recordOffset, recordLength);
         }
     }
 
     unsigned freeSpace = getFreeSpace(data);
-    unsigned totalLength = PAGE_SIZE - freeSpace - totalSlot * DICT_SIZE - 2 * UNSIGNED_SIZE - startOffset - length;
+    unsigned totalLength = PAGE_SIZE - freeSpace - totalSlot * DICT_SIZE - 2 * UNSIGNED_SIZE - startOffset - oldLength;
 
     // shift whole record
-    memmove((char *)data + startOffset, (char *)data + startOffset + length, totalLength);
+    memmove((char *)data + startOffset + oldLength - lengthGap, (char *)data + startOffset + oldLength, totalLength);
 }
 
 bool RecordBasedFileManager::isRedirected(void *record) {
