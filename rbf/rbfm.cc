@@ -914,35 +914,37 @@ bool RBFM_ScanIterator::checkConditionalAttr() {
             break;
     }
 
+    free(data);
+
     if ((nullIndicator & 0x80U) == 0x80U) {
         return false;
     } else {
         switch (compOp) {
 
             case EQ_OP:
-                return (attrType == TypeInt && valueInt == dataInt) ||
-                       (attrType == TypeReal && valueReal == dataReal) ||
-                       (attrType == TypeVarChar && valueVarChar == dataVarChar);
+                return (attrType == TypeInt && dataInt == valueInt) ||
+                       (attrType == TypeReal && dataReal == valueReal) ||
+                       (attrType == TypeVarChar && dataVarChar == valueVarChar);
             case LT_OP:
-                return (attrType == TypeInt && valueInt < dataInt) ||
-                       (attrType == TypeReal && valueReal < dataReal) ||
-                       (attrType == TypeVarChar && valueVarChar < dataVarChar);
+                return (attrType == TypeInt && dataInt < valueInt) ||
+                       (attrType == TypeReal && dataReal < valueReal) ||
+                       (attrType == TypeVarChar && dataVarChar < valueVarChar);
             case LE_OP:
-                return (attrType == TypeInt && valueInt <= dataInt) ||
-                       (attrType == TypeReal && valueReal <= dataReal) ||
-                       (attrType == TypeVarChar && valueVarChar <= dataVarChar);
+                return (attrType == TypeInt && dataInt <= valueInt) ||
+                       (attrType == TypeReal && dataReal <= valueReal) ||
+                       (attrType == TypeVarChar && dataVarChar <= valueVarChar);
             case GT_OP:
-                return (attrType == TypeInt && valueInt > dataInt) ||
-                       (attrType == TypeReal && valueReal > dataReal) ||
-                       (attrType == TypeVarChar && valueVarChar > dataVarChar);
+                return (attrType == TypeInt && dataInt > valueInt) ||
+                       (attrType == TypeReal && dataReal > valueReal) ||
+                       (attrType == TypeVarChar && dataVarChar > valueVarChar);
             case GE_OP:
-                return (attrType == TypeInt && valueInt >= dataInt) ||
-                       (attrType == TypeReal && valueReal >= dataReal) ||
-                       (attrType == TypeVarChar && valueVarChar >= dataVarChar);
+                return (attrType == TypeInt && dataInt >= valueInt) ||
+                       (attrType == TypeReal && dataReal >= valueReal) ||
+                       (attrType == TypeVarChar && dataVarChar >= valueVarChar);
             case NE_OP:
-                return (attrType == TypeInt && valueInt != dataInt) ||
-                       (attrType == TypeReal && valueReal != dataReal) ||
-                       (attrType == TypeVarChar && valueVarChar != dataVarChar);
+                return (attrType == TypeInt && dataInt != valueInt) ||
+                       (attrType == TypeReal && dataReal != valueReal) ||
+                       (attrType == TypeVarChar && dataVarChar != valueVarChar);
             case NO_OP:
                 return true;
         }
