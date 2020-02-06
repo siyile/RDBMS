@@ -22,15 +22,15 @@ RC RecordBasedFileManager::createFile(const std::string &fileName) {
 }
 
 RC RecordBasedFileManager::destroyFile(const std::string &fileName) {
-    return  PagedFileManager::instance().destroyFile(fileName);
+    return PagedFileManager::instance().destroyFile(fileName);
 }
 
 RC RecordBasedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-    return PagedFileManager::instance().openFile(fileName,fileHandle);
+    return PagedFileManager::instance().openFile(fileName, fileHandle);
 }
 
 RC RecordBasedFileManager::closeFile(FileHandle &fileHandle) {
-    return  PagedFileManager::instance().closeFile(fileHandle);
+    return PagedFileManager::instance().closeFile(fileHandle);
 }
 
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -38,7 +38,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     unsigned pageNum = fileHandle.getNumberOfPages();
     unsigned curPage = pageNum - 1;
     // reformat record data
-    void* recordData = malloc(PAGE_SIZE);
+    void *recordData = malloc(PAGE_SIZE);
     unsigned recordSize;
     convertDataToRecord(data, recordData, recordSize, recordDescriptor);
     unsigned spaceNeed = recordSize + DICT_SIZE;
@@ -216,7 +216,7 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
         int exist = attrsExist[i];
         if (exist == 1) {
             if (attr.type == TypeInt || attr.type == TypeReal) {
-                memcpy((char *)record + dataOffset, (char *) data + pos, UNSIGNED_SIZE);
+                memcpy((char *) record + dataOffset, (char *) data + pos, UNSIGNED_SIZE);
                 pos += UNSIGNED_SIZE;
                 dataOffset += UNSIGNED_SIZE;
             } else {
@@ -229,7 +229,7 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
                 dataOffset += charLength;
             }
             // copy offset to head of record
-            memcpy((char *)record + indexOffset, &dataOffset, UNSIGNED_SIZE);
+            memcpy((char *) record + indexOffset, &dataOffset, UNSIGNED_SIZE);
             indexOffset += UNSIGNED_SIZE;
         } else {
             // do nothing
@@ -246,7 +246,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
     unsigned slotNum = rid.slotNum;
 
     // read page data into variable data
-    void* data = malloc(PAGE_SIZE);
+    void *data = malloc(PAGE_SIZE);
     fileHandle.readPage(pageNum, data);
 
 
@@ -340,11 +340,11 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
     unsigned slotNum = rid.slotNum;
 
     // read page data into variable data
-    void* pageData = malloc(PAGE_SIZE);
+    void *pageData = malloc(PAGE_SIZE);
     fileHandle.readPage(pageNum, pageData);
 
     unsigned newLength;
-    void* newRecord = malloc(PAGE_SIZE);
+    void *newRecord = malloc(PAGE_SIZE);
     convertDataToRecord(data, newRecord, newLength, recordDescriptor); // get newLength
 
     void *record = malloc(PAGE_SIZE);
@@ -434,7 +434,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                                           const RID &rid, const std::vector<std::string> &attributeNames, void *data) {
     unsigned _;
     unsigned size = recordDescriptor.size();
-    void * record = malloc(PAGE_SIZE);
+    void *record = malloc(PAGE_SIZE);
     readRecord(fileHandle, recordDescriptor, rid, record, true, _);
 
     int *attrsExist = new int[size];
@@ -443,7 +443,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
     getAttrExistArray(dirStartPos, attrsExist, record, size, true);
 
     unsigned nullIndicatorSize = (attributeNames.size() + 7) / 8;
-    auto* nullIndicator = new unsigned char[nullIndicatorSize];
+    auto *nullIndicator = new unsigned char[nullIndicatorSize];
     // set nullIndicator all to 1
     memset(nullIndicator, 0xff, nullIndicatorSize);
 
@@ -600,10 +600,10 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
     if (targetSlotNum == slotNum + 1) {
         offset = PAGE_SIZE - freeSpace - slotNum * DICT_SIZE - 2 * UNSIGNED_SIZE;
         slotNum++;
-        freeSpace += - dataSize - DICT_SIZE;
+        freeSpace += -dataSize - DICT_SIZE;
     } else {
         offset = PAGE_SIZE - freeSpace - slotNum * DICT_SIZE - 2 * UNSIGNED_SIZE;
-        freeSpace += - dataSize;
+        freeSpace += -dataSize;
     }
 
     writeRecord(pageData, record, offset, dataSize);
@@ -621,7 +621,8 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
 }
 
 void
-RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize, bool isRecord) {
+RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize,
+                                          bool isRecord) {
     unsigned nullIndicatorSize = (attrSize + 7) / 8;
     auto *block = static_cast<unsigned char *>(malloc(sizeof(char) * nullIndicatorSize));
     memcpy(block, (char *) data + (isRecord ? UNSIGNED_SIZE + REDIRECT_INDICATOR_SIZE : 0), nullIndicatorSize);
@@ -659,7 +660,7 @@ unsigned RecordBasedFileManager::getTargetRecordOffset(void *data, unsigned slot
 }
 
 void RecordBasedFileManager::writeRecord(void *pageData, const void *record, unsigned offset, unsigned length) {
-    memcpy((char *) pageData + offset, (char *)record, length);
+    memcpy((char *) pageData + offset, (char *) record, length);
 }
 
 unsigned RecordBasedFileManager::getFreeSpaceByPageNum(FileHandle &fileHandle, unsigned pageNum) {
@@ -680,7 +681,7 @@ unsigned RecordBasedFileManager::getTotalSlotByPageNum(FileHandle &fileHandle, u
 
 unsigned RecordBasedFileManager::getTotalSlot(const void *data) {
     unsigned slotNum;
-    memcpy(&slotNum, (char *)data + N_POS, sizeof(unsigned));
+    memcpy(&slotNum, (char *) data + N_POS, sizeof(unsigned));
 
     return slotNum;
 }
@@ -727,7 +728,7 @@ void RecordBasedFileManager::leftShiftRecord(void *data, unsigned startOffset, u
     unsigned totalLength = PAGE_SIZE - freeSpace - totalSlot * DICT_SIZE - 2 * UNSIGNED_SIZE - startOffset - oldLength;
 
     // shift whole record
-    memmove((char *)data + startOffset + oldLength - lengthGap, (char *)data + startOffset + oldLength, totalLength);
+    memmove((char *) data + startOffset + oldLength - lengthGap, (char *) data + startOffset + oldLength, totalLength);
 }
 
 bool RecordBasedFileManager::isRedirected(void *record) {
@@ -754,7 +755,7 @@ void RecordBasedFileManager::rightShiftRecord(void *data, unsigned startOffset, 
     unsigned totalLength = PAGE_SIZE - freeSpace - totalSlot * DICT_SIZE - 2 * UNSIGNED_SIZE - startOffset - length;
 
     // shift whole record
-    memmove((char *)data + startOffset + updatedLength, (char *)data + startOffset + length, totalLength);
+    memmove((char *) data + startOffset + updatedLength, (char *) data + startOffset + length, totalLength);
 }
 
 void RecordBasedFileManager::getRIDFromRedirectedRecord(void *record, RID &rid) {
@@ -781,14 +782,14 @@ RC RecordBasedFileManager::readRecordFromPage(void *data, void *record, unsigned
 }
 
 void RecordBasedFileManager::readRIDFromRecord(void *record, RID &rid) {
-    memcpy(&rid.pageNum, (char *)record + REDIRECT_INDICATOR_SIZE, UNSIGNED_SIZE);
-    memcpy(&rid.slotNum, (char *)record + REDIRECT_INDICATOR_SIZE + UNSIGNED_SIZE, UNSIGNED_SIZE);
+    memcpy(&rid.pageNum, (char *) record + REDIRECT_INDICATOR_SIZE, UNSIGNED_SIZE);
+    memcpy(&rid.slotNum, (char *) record + REDIRECT_INDICATOR_SIZE + UNSIGNED_SIZE, UNSIGNED_SIZE);
 }
 
 void RecordBasedFileManager::createRIDRecord(void *record, RID &rid) {
     unsigned char indicator = 0x01;
-    memcpy((char *)record, &indicator, REDIRECT_INDICATOR_SIZE);
-    memcpy((char *)record + REDIRECT_INDICATOR_SIZE, &rid.pageNum, UNSIGNED_SIZE);
+    memcpy((char *) record, &indicator, REDIRECT_INDICATOR_SIZE);
+    memcpy((char *) record + REDIRECT_INDICATOR_SIZE, &rid.pageNum, UNSIGNED_SIZE);
     memcpy((char *) record + REDIRECT_INDICATOR_SIZE + UNSIGNED_SIZE, &rid.slotNum, UNSIGNED_SIZE);
 }
 
@@ -802,6 +803,7 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attrib
     rbfm_ScanIterator.recordDescriptor = recordDescriptor;
     rbfm_ScanIterator.compOp = compOp;
     rbfm_ScanIterator.value = value;
+    rbfm_ScanIterator.conditionAttribute = conditionAttribute;
 
     return 0;
 }
@@ -812,7 +814,7 @@ RBFM_ScanIterator::RBFM_ScanIterator() {
 
 RC RBFM_ScanIterator::getNextRecord(RID &curRID, void *data) {
     unsigned totalPageNum = fileHandle->getNumberOfPages();
-    void* pageData = malloc(PAGE_SIZE);
+    void *pageData = malloc(PAGE_SIZE);
 
     // move slotNum one step forward
     rid.slotNum += 1;
@@ -822,10 +824,12 @@ RC RBFM_ScanIterator::getNextRecord(RID &curRID, void *data) {
         unsigned totalSlot = rbfm->getTotalSlot(pageData);
 
         while (rid.slotNum <= totalSlot) {
-            if (isCurRIDValid(pageData)) {
+            // check current RID Valid && check whether satisfy the condition request
+            if (isCurRIDValid(pageData) && checkConditionalAttr()) {
                 curRID.slotNum = rid.slotNum;
                 curRID.pageNum = rid.pageNum;
-                // if need all attr, just read data
+
+                // if need all attr, just read whole record
                 if (recordDescriptor.size() == attributeNames.size()) {
                     rbfm->readRecord(*fileHandle, recordDescriptor, rid, data);
                 } else {
@@ -855,5 +859,93 @@ bool RBFM_ScanIterator::isCurRIDValid(void *data) {
     rbfm->getOffsetAndLength(data, rid.slotNum, offset, length);
 
     return length != 0;
+}
+
+bool RBFM_ScanIterator::checkConditionalAttr() {
+    if (compOp == NO_OP) {
+        return true;
+    }
+
+    void *data = malloc(PAGE_SIZE);
+    rbfm->readAttribute(*fileHandle, recordDescriptor, rid, conditionAttribute, data);
+
+    AttrType attrType;
+    for (const auto &attr : recordDescriptor) {
+        if (attr.name == conditionAttribute) {
+            attrType = attr.type;
+            break;
+        }
+    }
+
+    unsigned char nullIndicator;
+    memcpy(&nullIndicator, data, NULL_INDICATOR_UNIT_SIZE);
+
+    int valueInt = 0;
+    float valueReal = 0;
+    std::string valueVarChar;
+
+    int dataInt = 0;
+    float dataReal = 0;
+    std::string dataVarChar;
+
+    switch (attrType) {
+
+        case TypeInt:
+            memcpy(&valueInt, value, INT_SIZE);
+            memcpy(&dataInt, (char *) data + NULL_INDICATOR_UNIT_SIZE, INT_SIZE);
+            break;
+        case TypeReal:
+            memcpy(&valueReal, value, INT_SIZE);
+            memcpy(&dataReal, (char *) data + NULL_INDICATOR_UNIT_SIZE, INT_SIZE);
+            break;
+        case TypeVarChar:
+            unsigned length;
+            memcpy(&length, value, UNSIGNED_SIZE);
+            char *valueChars = new char[length + 1];
+            memcpy(valueChars, (char *) value + UNSIGNED_SIZE, length);
+            valueChars[length] = '\0';
+            valueVarChar.assign(valueChars, length + 1);
+
+            memcpy(&length, data, UNSIGNED_SIZE);
+            char *dataChars = new char[length + 1];
+            memcpy(dataChars, (char *) data + NULL_INDICATOR_UNIT_SIZE + UNSIGNED_SIZE, length);
+            dataChars[length] = '\0';
+            dataVarChar.assign(dataChars, length + 1);
+            break;
+    }
+
+    if ((nullIndicator & 0x80U) == 0x80U) {
+        return false;
+    } else {
+        switch (compOp) {
+
+            case EQ_OP:
+                return (attrType == TypeInt && valueInt == dataInt) ||
+                       (attrType == TypeReal && valueReal == dataReal) ||
+                       (attrType == TypeVarChar && valueVarChar == dataVarChar);
+            case LT_OP:
+                return (attrType == TypeInt && valueInt < dataInt) ||
+                       (attrType == TypeReal && valueReal < dataReal) ||
+                       (attrType == TypeVarChar && valueVarChar < dataVarChar);
+            case LE_OP:
+                return (attrType == TypeInt && valueInt <= dataInt) ||
+                       (attrType == TypeReal && valueReal <= dataReal) ||
+                       (attrType == TypeVarChar && valueVarChar <= dataVarChar);
+            case GT_OP:
+                return (attrType == TypeInt && valueInt > dataInt) ||
+                       (attrType == TypeReal && valueReal > dataReal) ||
+                       (attrType == TypeVarChar && valueVarChar > dataVarChar);
+            case GE_OP:
+                return (attrType == TypeInt && valueInt >= dataInt) ||
+                       (attrType == TypeReal && valueReal >= dataReal) ||
+                       (attrType == TypeVarChar && valueVarChar >= dataVarChar);
+            case NE_OP:
+                return (attrType == TypeInt && valueInt != dataInt) ||
+                       (attrType == TypeReal && valueReal != dataReal) ||
+                       (attrType == TypeVarChar && valueVarChar != dataVarChar);
+            case NO_OP:
+                return true;
+        }
+    }
 };
 

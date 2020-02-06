@@ -15,6 +15,7 @@
 #define RID_SIZE 9
 #define SCAN_INIT_PAGE_NUM 0
 #define SCAN_INIT_SLOT_NUM 0
+#define NULL_INDICATOR_UNIT_SIZE 1
 
 // Record ID
 typedef struct {
@@ -69,6 +70,7 @@ public:
     FileHandle *fileHandle;
     std::vector<std::string> attributeNames;
     std::vector<Attribute> recordDescriptor;
+    std::string conditionAttribute;
     CompOp compOp;
     const void* value;
     RID rid;
@@ -85,6 +87,8 @@ public:
     RC close();
 
     bool isCurRIDValid(void *data);
+
+    bool checkConditionalAttr();
 
 private:
     RecordBasedFileManager* rbfm;
