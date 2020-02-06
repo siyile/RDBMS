@@ -408,6 +408,13 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
 
 RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                          const RID &rid, const std::string &attributeName, void *data) {
+    std::vector<std::string> attributeNames;
+    attributeNames.push_back(attributeName);
+    return readAttributes(fileHandle, recordDescriptor, rid, attributeNames, data);
+}
+
+RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                                          const RID &rid, const std::vector<std::string> &attributeNames, void *data) {
     unsigned _;
     unsigned size = recordDescriptor.size();
     void * record = malloc(PAGE_SIZE);
@@ -418,75 +425,84 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vect
     // implicit move nullIndicatorSize
     getAttrExistArray(dirStartPos, attrsExist, record, size, true);
 
-    bool found = false;
+    unsigned nullIndicatorSize = (attributeNames.size() + 7) / 8;
+    auto* nullIndicator = new unsigned char[nullIndicatorSize];
+    // set nullIndicator all to 1
+    memset(nullIndicator, 0xff, nullIndicatorSize);
 
+    unsigned destPos = nullIndicatorSize;
     unsigned dirPointerPos = dirStartPos;
-    bool isFirstAttr = true;
     unsigned length;
     unsigned offset;
+    bool isFirstAttr = true;
 
     AttrType attrType;
 
     for (unsigned i = 0; i < size; i++) {
         if (attrsExist[i]) {
-            if (recordDescriptor[i].name == attributeName) {
-                attrType = recordDescriptor[i].type;
-                unsigned targetDataEndPos;
-                memcpy(&targetDataEndPos, (char *) record + dirPointerPos, UNSIGNED_SIZE);
+            for (int j = 0; j < attributeNames.size(); j++) {
+                if (recordDescriptor[i].name == attributeNames[j]) {
+                    attrType = recordDescriptor[i].type;
+                    unsigned targetDataEndPos;
+                    memcpy(&targetDataEndPos, (char *) record + dirPointerPos, UNSIGNED_SIZE);
 
-                // calculate offset & length
-                if (isFirstAttr) {
-                    // if is the starting index, get the starting data offset
-                    // dataStartPos is the data start offset
-                    unsigned dataStartPos = dirStartPos;
-                    for (unsigned j = 0; j < size; j++) {
-                        if (attrsExist[j]) {
-                            dataStartPos += UNSIGNED_SIZE;
-                        } else {
+                    // calculate offset & length
+                    if (isFirstAttr) {
+                        // if is the starting index, get the starting data offset
+                        // dataStartPos is the data start offset
+                        unsigned dataStartPos = dirStartPos;
+                        for (unsigned k = 0; k < size; k++) {
+                            if (attrsExist[k]) {
+                                dataStartPos += UNSIGNED_SIZE;
+                            } else {
 
+                            }
                         }
+
+                        offset = dataStartPos;
+                        length = targetDataEndPos - dataStartPos;
+                    } else {
+                        unsigned targetDataStartPos;
+                        memcpy(&targetDataStartPos, (char *) record + dirPointerPos - UNSIGNED_SIZE, UNSIGNED_SIZE);
+
+                        length = targetDataEndPos - targetDataStartPos;
+                        offset = targetDataStartPos;
                     }
 
-                    offset = dataStartPos;
-                    length = targetDataEndPos - dataStartPos;
+                    // set null indicator
+                    setNullIndicatorToExist(data, j);
+
+                    // if is VarChar, set length first
+                    if (attrType == TypeVarChar) {
+                        memcpy((char *) data + destPos, &length, UNSIGNED_SIZE);
+                        destPos += UNSIGNED_SIZE;
+                    }
+                    memcpy((char *) data + destPos, (char *) record + offset, length);
+                    destPos += length;
                 } else {
-                    unsigned targetDataStartPos;
-                    memcpy(&targetDataStartPos, (char *) record + dirPointerPos - UNSIGNED_SIZE, UNSIGNED_SIZE);
+                    isFirstAttr = false;
+                } // end if (recordDescriptor[i].name == attributeNames[j])
 
-                    length = targetDataEndPos - targetDataStartPos;
-                    offset = targetDataStartPos;
-                }
-
-                // set found flag to true
-                found = true;
-            } else {
-                isFirstAttr = false;
+                // mv dir pointer fwd
+                dirPointerPos += UNSIGNED_SIZE;
             }
-
-            // mv dir pointer fwd
-            dirPointerPos += UNSIGNED_SIZE;
         } else {
             // if attr not exist, do nothing
-        }
-    }
-
-    // we need to use the null indicator at the front of return data
-    if (!found) {
-        unsigned char nullIndicator = 0x80;
-        memcpy(data, &nullIndicator, UNSIGNED_CHAR_SIZE);
-    } else {
-        unsigned char nullIndicator = 0x00;
-        memcpy(data, &nullIndicator, UNSIGNED_CHAR_SIZE);
-        unsigned pos = UNSIGNED_CHAR_SIZE;
-        // if type is varchar, add length before data
-        if (attrType == TypeVarChar) {
-            memcpy((char *) data + pos, &length, UNSIGNED_SIZE);
-            pos += length;
-        }
-        memcpy((char *)data + pos, (char *) record + offset, length);
+        } // end if (attrsExist[i])
     }
 
     return 0;
+}
+
+void RecordBasedFileManager::setNullIndicatorToExist(void *data, int i) {
+    unsigned char byte;
+    int offset = i / 8;
+    memcpy(&byte, (char *) data + offset, UNSIGNED_CHAR_SIZE);
+
+    // set byte
+    unsigned int j = 7 - i % 8;
+    byte &= ~(0x01U << j);
+    memcpy((char *) data + offset, &byte, UNSIGNED_CHAR_SIZE);
 }
 
 int RecordBasedFileManager::scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed) {
@@ -774,10 +790,11 @@ RC RBFM_ScanIterator::getNextRecord(RID &curRID, void *data) {
             if (isCurRIDValid(pageData)) {
                 curRID.slotNum = rid.slotNum;
                 curRID.pageNum = rid.pageNum;
+                // if need all attr, just read data
                 if (recordDescriptor.size() == attributeNames.size()) {
                     rbfm->readRecord(*fileHandle, recordDescriptor, rid, data);
                 } else {
-                    
+                    rbfm->readAttributes(*fileHandle, recordDescriptor, rid, attributeNames, data);
                 }
                 return 0;
             } else {
