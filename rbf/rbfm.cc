@@ -111,6 +111,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
         if (isOutputRecord) {
             recordLength = length;
             memcpy((char *) data, (char *) record, length);
+            free(record);
             return 0;
         } else {
             convertRecordToData(record, data, recordDescriptor);
@@ -126,6 +127,11 @@ RecordBasedFileManager::convertRecordToData(void *record, void *data, const std:
     unsigned size = recordDescriptor.size();
     // pos = pointer position in record
     unsigned pos = UNSIGNED_SIZE + REDIRECT_INDICATOR_SIZE;
+
+    unsigned asize = 2;
+    memcpy(&asize, (char *) record + 1, UNSIGNED_SIZE);
+//    std::cout << asize << std::endl;
+
     // destPos = pointer position in data
     unsigned destPos = 0;
 
@@ -136,12 +142,18 @@ RecordBasedFileManager::convertRecordToData(void *record, void *data, const std:
 
     getAttrExistArray(pos, attrsExist, record, size, true);
 
-    unsigned fieldStart = pos + UNSIGNED_SIZE * size;
+    // fieldStart is the start position of data part in record
+    unsigned fieldStart = pos;
+    for (unsigned i = 0; i < size; i++) {
+        if (attrsExist[i] == 1) {
+            fieldStart += UNSIGNED_SIZE;
+        }
+    }
 
     for (unsigned i = 0; i < size; i++) {
         Attribute attr = recordDescriptor[i];
-        bool exist = attrsExist[i];
-        if (exist) {
+        int exist = attrsExist[i];
+        if (exist == 1) {
             unsigned fieldEnd;
             memcpy(&fieldEnd, (char *) record + pos, UNSIGNED_SIZE);
             pos += UNSIGNED_SIZE;
@@ -157,7 +169,7 @@ RecordBasedFileManager::convertRecordToData(void *record, void *data, const std:
             }
             fieldStart = fieldEnd;
         } else {
-            pos += UNSIGNED_SIZE;
+            // do nothing
         }
     }
 };
@@ -192,12 +204,17 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
     unsigned indexOffset = recordPos;
 
     // dataOffset is the offset of the recordData after index
-    unsigned dataOffset = indexOffset + size * UNSIGNED_SIZE;
+    unsigned dataOffset = indexOffset;
+    for (unsigned i = 0; i < size; i++) {
+        if (attrsExist[i] == 1) {
+            dataOffset += UNSIGNED_SIZE;
+        }
+    }
 
     for (unsigned i = 0; i < size; i++) {
         Attribute attr = recordDescriptor[i];
-        bool exist = attrsExist[i];
-        if (exist) {
+        int exist = attrsExist[i];
+        if (exist == 1) {
             if (attr.type == TypeInt || attr.type == TypeReal) {
                 memcpy((char *)record + dataOffset, (char *) data + pos, UNSIGNED_SIZE);
                 pos += UNSIGNED_SIZE;
@@ -211,13 +228,12 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
                 pos += charLength;
                 dataOffset += charLength;
             }
+            // copy offset to head of record
+            memcpy((char *)record + indexOffset, &dataOffset, UNSIGNED_SIZE);
+            indexOffset += UNSIGNED_SIZE;
         } else {
             // do nothing
         }
-
-        // copy offset to head of record
-        memcpy((char *)record + indexOffset, (char *) &dataOffset, UNSIGNED_SIZE);
-        indexOffset += UNSIGNED_SIZE;
     }
 
     recordSize = dataOffset;
@@ -397,6 +413,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
             // write new RID back to old page
             createRIDRecord(record, curRid);
             writeRecord(pageData, record, offset, RID_SIZE);
+
             fileHandle.writePage(pageNum, pageData);
         }
     }
@@ -435,11 +452,12 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
     unsigned length;
     unsigned offset;
     bool isFirstAttr = true;
+    int attrFind = 0;
 
     AttrType attrType;
 
     for (unsigned i = 0; i < size; i++) {
-        if (attrsExist[i]) {
+        if (attrsExist[i] == 1) {
             for (int j = 0; j < attributeNames.size(); j++) {
                 if (recordDescriptor[i].name == attributeNames[j]) {
                     attrType = recordDescriptor[i].type;
@@ -452,7 +470,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                         // dataStartPos is the data start offset
                         unsigned dataStartPos = dirStartPos;
                         for (unsigned k = 0; k < size; k++) {
-                            if (attrsExist[k]) {
+                            if (attrsExist[k] == 1) {
                                 dataStartPos += UNSIGNED_SIZE;
                             } else {
 
@@ -479,6 +497,12 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                     }
                     memcpy((char *) data + destPos, (char *) record + offset, length);
                     destPos += length;
+
+                    attrFind++;
+                    // if found enough data, terminate scan early
+                    if (attrFind == attributeNames.size()) {
+                        return 0;
+                    }
                 } else {
                     isFirstAttr = false;
                 } // end if (recordDescriptor[i].name == attributeNames[j])
@@ -593,7 +617,7 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
 void
 RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize, bool isRecord) {
     unsigned nullIndicatorSize = (attrSize + 7) / 8;
-    char *block = static_cast<char *>(malloc(sizeof(char) * nullIndicatorSize));
+    auto *block = static_cast<unsigned char *>(malloc(sizeof(char) * nullIndicatorSize));
     memcpy(block, (char *) data + (isRecord ? UNSIGNED_SIZE + REDIRECT_INDICATOR_SIZE : 0), nullIndicatorSize);
     unsigned idx = 0;
     for (unsigned i = 0; i < nullIndicatorSize; i++) {

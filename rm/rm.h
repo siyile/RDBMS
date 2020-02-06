@@ -56,6 +56,10 @@ public:
 
     std::vector<Attribute> tableAttr;
     std::vector<Attribute> columnAttr;
+    
+    std::vector<std::string> tableAttributeNames;
+    std::vector<std::string> columnAttributeNames;
+
 
     // tableName -> fileName
     std::unordered_map<std::string, std::string> tableNameToFileMap;

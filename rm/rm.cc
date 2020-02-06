@@ -3,9 +3,9 @@
 #include <utility>
 #include <iostream>
 
-inline bool exists_test (const std::string& name) {
+inline bool exists_test(const std::string &name) {
     struct stat buffer;
-    return (stat (name.c_str(), &buffer) == 0);
+    return (stat(name.c_str(), &buffer) == 0);
 }
 
 RelationManager &RelationManager::instance() {
@@ -34,6 +34,14 @@ RelationManager::RelationManager() {
 
     tableNameToFileMap[TABLES_NAME] = TABLES_FILE_NAME;
     tableNameToFileMap[COLUMNS_NAME] = COLUMNS_FILE_NAME;
+
+    for (auto attr : tableAttr) {
+        tableAttributeNames.push_back(attr.name);
+    }
+
+    for (auto attr: columnAttr) {
+        columnAttributeNames.push_back(attr.name);
+    }
 
     if (exists_test(TABLES_FILE_NAME)) {
         // read physical file into memory hashmap
@@ -106,7 +114,7 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
 
     // insert tuple into Table & Columns
     RID _;
-    void* data = malloc(SM_BLOCK);
+    void *data = malloc(SM_BLOCK);
     generateTablesData(curTableID, tableName, fileName, data, isSystemTable);
     insertTuple(TABLES_NAME, data, _);
 
@@ -138,11 +146,11 @@ RC RelationManager::deleteTable(const std::string &tableName) {
 
     // delete table tuple in TABLES
     RM_ScanIterator rmsi_table;
-    std::vector<std::string> attributeNames;
-    scan(TABLES_NAME, NULL_STRING, NO_OP, nullptr, attributeNames, rmsi_table);
+
+    scan(TABLES_NAME, NULL_STRING, NO_OP, nullptr, tableAttributeNames, rmsi_table);
 
     RID rid;
-    void* data = malloc(PAGE_SIZE);
+    void *data = malloc(PAGE_SIZE);
     while (rmsi_table.getNextTuple(rid, data) != RM_EOF) {
         std::string tupleTableName, fileName;
         unsigned id;
@@ -158,7 +166,7 @@ RC RelationManager::deleteTable(const std::string &tableName) {
     unsigned id = tableNameToIdMap[tableName];
     // delete column tuple in COLUMNS
     RM_ScanIterator rmsi_column;
-    scan(COLUMNS_NAME, NULL_STRING, NO_OP, nullptr, attributeNames, rmsi_column);
+    scan(COLUMNS_NAME, NULL_STRING, NO_OP, nullptr, columnAttributeNames, rmsi_column);
     while (rmsi_column.getNextTuple(rid, data) != RM_EOF) {
         std::string tupleTableName, fileName;
         Attribute attr;
@@ -295,7 +303,6 @@ RC RelationManager::readAttribute(const std::string &tableName, const RID &rid, 
 }
 
 
-
 void RelationManager::appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len) {
     Attribute attr;
     attr.name = std::move(name);
@@ -321,7 +328,7 @@ void RelationManager::generateTablesData(unsigned id, std::string tableName, std
     pos += UNSIGNED_SIZE;
 
     //write tableName into corresponding position
-    unsigned tableNameSize =  tableName.length() + 1;
+    unsigned tableNameSize = tableName.length() + 1;
     memcpy((char *) data + pos, &tableNameSize, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
@@ -329,7 +336,7 @@ void RelationManager::generateTablesData(unsigned id, std::string tableName, std
     pos += tableNameSize;
 
     //write fileName into corresponding position
-    unsigned fileNameSize =  fileName.length() + 1;
+    unsigned fileNameSize = fileName.length() + 1;
     memcpy((char *) data + pos, &fileNameSize, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
@@ -356,7 +363,7 @@ void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned 
     pos += UNSIGNED_SIZE;
 
     //write attr into corresponding position
-    unsigned attrNameSize =  attr.name.length() + 1;
+    unsigned attrNameSize = attr.name.length() + 1;
     memcpy((char *) data + pos, &attrNameSize, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
@@ -375,11 +382,12 @@ void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned 
 
 void RelationManager::initScanTablesOrColumns(bool isTables) {
     RM_ScanIterator rmsi;
-    std::vector<std::string> attributeNames;
-    scan(isTables ? TABLES_NAME : COLUMNS_NAME, NULL_STRING, NO_OP, nullptr, attributeNames, rmsi);
+
+    scan(isTables ? TABLES_NAME : COLUMNS_NAME, NULL_STRING, NO_OP, nullptr,
+         isTables ? tableAttributeNames : columnAttributeNames, rmsi);
 
     RID rid;
-    void* data = malloc(SM_BLOCK);
+    void *data = malloc(PAGE_SIZE);
     while (rmsi.getNextTuple(rid, data) != RM_EOF) {
         if (isTables) {
             std::string tableName, fileName;
@@ -428,7 +436,7 @@ void RelationManager::parseTablesData(void *data, std::string &tableName, std::s
     unsigned pos = NULL_INDICATOR_UNIT_SIZE;
 
     //get id from corresponding position
-    memcpy(&id, (char *) data + pos,UNSIGNED_SIZE);
+    memcpy(&id, (char *) data + pos, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
     //get tableName from corresponding position
@@ -492,12 +500,13 @@ RC RelationManager::scan(const std::string &tableName,
 
     std::vector<Attribute> recordDescriptor = tableNameToAttrMap[tableName];
 
-    rbfm->scan(rm_ScanIterator.fileHandle, recordDescriptor, conditionAttribute, compOp, value, attributeNames, rm_ScanIterator.rbfmsi);
+    rbfm->scan(rm_ScanIterator.fileHandle, recordDescriptor, conditionAttribute, compOp, value, attributeNames,
+               rm_ScanIterator.rbfmsi);
 
     return 0;
 }
 
-RM_ScanIterator::RM_ScanIterator(){
+RM_ScanIterator::RM_ScanIterator() {
 
 }
 
