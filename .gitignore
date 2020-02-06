@@ -1,0 +1,6 @@
+*.patch
+*.rej
+.idea/
+cmake-build-debug
+
+
