@@ -69,6 +69,8 @@ public:
     FileHandle *fileHandle;
     std::vector<std::string> attributeNames;
     std::vector<Attribute> recordDescriptor;
+    CompOp compOp;
+    const void* value;
     RID rid;
 
     RBFM_ScanIterator();

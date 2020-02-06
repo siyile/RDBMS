@@ -439,7 +439,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
 
     int *attrsExist = new int[size];
     unsigned dirStartPos = UNSIGNED_SIZE + REDIRECT_INDICATOR_SIZE;
-    // implicit move nullIndicatorSize
+    // implicit move dirStartPos nullIndicatorSize step
     getAttrExistArray(dirStartPos, attrsExist, record, size, true);
 
     unsigned nullIndicatorSize = (attributeNames.size() + 7) / 8;
@@ -458,6 +458,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
 
     for (unsigned i = 0; i < size; i++) {
         if (attrsExist[i] == 1) {
+            int prevAttrSize = attrFind;
             for (int j = 0; j < attributeNames.size(); j++) {
                 if (recordDescriptor[i].name == attributeNames[j]) {
                     attrType = recordDescriptor[i].type;
@@ -479,6 +480,8 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
 
                         offset = dataStartPos;
                         length = targetDataEndPos - dataStartPos;
+
+                        isFirstAttr = false;
                     } else {
                         unsigned targetDataStartPos;
                         memcpy(&targetDataStartPos, (char *) record + dirPointerPos - UNSIGNED_SIZE, UNSIGNED_SIZE);
@@ -504,12 +507,15 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                         return 0;
                     }
                 } else {
-                    isFirstAttr = false;
-                } // end if (recordDescriptor[i].name == attributeNames[j])
 
-                // mv dir pointer fwd
-                dirPointerPos += UNSIGNED_SIZE;
+                } // end if (recordDescriptor[i].name == attributeNames[j])
             }
+
+            if (prevAttrSize == attrFind) {
+                isFirstAttr = false;
+            }
+            // mv dir pointer fwd
+            dirPointerPos += UNSIGNED_SIZE;
         } else {
             // if attr not exist, do nothing
         } // end if (attrsExist[i])
@@ -794,6 +800,8 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attrib
     rbfm_ScanIterator.rid.slotNum = SCAN_INIT_SLOT_NUM;
     rbfm_ScanIterator.attributeNames = attributeNames;
     rbfm_ScanIterator.recordDescriptor = recordDescriptor;
+    rbfm_ScanIterator.compOp = compOp;
+    rbfm_ScanIterator.value = value;
 
     return 0;
 }
@@ -809,7 +817,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &curRID, void *data) {
     // move slotNum one step forward
     rid.slotNum += 1;
 
-    while (rid.pageNum <= totalPageNum) {
+    while (rid.pageNum < totalPageNum) {
         fileHandle->readPage(rid.pageNum, pageData);
         unsigned totalSlot = rbfm->getTotalSlot(pageData);
 
@@ -829,6 +837,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &curRID, void *data) {
             }
         }
         rid.pageNum += 1;
+        rid.slotNum = 1;
     }
 
     free(pageData);
