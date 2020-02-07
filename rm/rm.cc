@@ -72,6 +72,15 @@ RC RelationManager::createCatalog() {
         return -1;
     }
 
+    // two essential map should be built, if not rebuild them
+    if (tableNameToAttrMap.count(TABLES_NAME) == 0) {
+        tableNameToAttrMap[TABLES_NAME] = tableAttr;
+        tableNameToAttrMap[COLUMNS_NAME] = columnAttr;
+
+        tableNameToFileMap[TABLES_NAME] = TABLES_FILE_NAME;
+        tableNameToFileMap[COLUMNS_NAME] = COLUMNS_FILE_NAME;
+    }
+
     createTable(TABLES_NAME, tableAttr, true);
     createTable(COLUMNS_NAME, columnAttr, true);
 
