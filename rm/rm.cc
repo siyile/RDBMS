@@ -328,19 +328,19 @@ void RelationManager::generateTablesData(unsigned id, std::string tableName, std
     pos += UNSIGNED_SIZE;
 
     //write tableName into corresponding position
-    unsigned tableNameSize = tableName.length() + 1;
+    unsigned tableNameSize = tableName.length();
     memcpy((char *) data + pos, &tableNameSize, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) data + pos, (char *) &tableName, tableNameSize);
+    memcpy((char *) data + pos, tableName.c_str(), tableNameSize);
     pos += tableNameSize;
 
     //write fileName into corresponding position
-    unsigned fileNameSize = fileName.length() + 1;
+    unsigned fileNameSize = fileName.length();
     memcpy((char *) data + pos, &fileNameSize, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) data + pos, (char *) &fileName, fileNameSize);
+    memcpy((char *) data + pos, fileName.c_str(), fileNameSize);
     pos += fileNameSize;
 
     //write isSystemTable into corresponding position
@@ -363,11 +363,11 @@ void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned 
     pos += UNSIGNED_SIZE;
 
     //write attr into corresponding position
-    unsigned attrNameSize = attr.name.length() + 1;
+    unsigned attrNameSize = attr.name.length();
     memcpy((char *) data + pos, &attrNameSize, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) data + pos, (char *) &attr.name, attrNameSize);
+    memcpy((char *) data + pos, attr.name.c_str(), attrNameSize);
     pos += attrNameSize;
 
     memcpy((char *) data + pos, &attr.type, UNSIGNED_SIZE);
@@ -444,7 +444,8 @@ void RelationManager::parseTablesData(void *data, std::string &tableName, std::s
     memcpy(&tableNameLength, (char *) data + pos, INT_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) &tableName, (char *) data + pos, tableNameLength);
+    tableName.assign((char *)data + pos, tableNameLength);
+//    memcpy((char *) &tableName, (char *) data + pos, tableNameLength);
     pos += tableNameLength;
 
     //get fileName from corresponding position
@@ -452,7 +453,8 @@ void RelationManager::parseTablesData(void *data, std::string &tableName, std::s
     memcpy(&fileNameLength, (char *) data + pos, INT_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) &fileName, (char *) data + pos, fileNameLength);
+    fileName.assign((char *)data + pos, fileNameLength);
+//    memcpy((char *) &fileName, (char *) data + pos, fileNameLength);
     pos += fileNameLength;
 
     //get isSystemTable from corresponding position
@@ -475,7 +477,8 @@ void RelationManager::parseColumnsData(void *data, unsigned int &id, Attribute &
     memcpy((char *) &attrNameLength, (char *) data + pos, INT_SIZE);
     pos += UNSIGNED_SIZE;
 
-    memcpy((char *) &attr.name, (char *) data + pos, attrNameLength);
+    attr.name.assign((char *) data + pos, attrNameLength);
+//    memcpy((char *) &attr.name, (char *) data + pos, attrNameLength);
     pos += attrNameLength;
 
     memcpy((char *) &attr.type, (char *) data + pos, UNSIGNED_SIZE);
