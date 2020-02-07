@@ -509,6 +509,14 @@ RC RelationManager::scan(const std::string &tableName,
     return 0;
 }
 
+RC RelationManager::addAttribute(const std::string &tableName, const Attribute &attr) {
+    return -1;
+}
+
+RC RelationManager::dropAttribute(const std::string &tableName, const std::string &attributeName) {
+    return -1;
+}
+
 RM_ScanIterator::RM_ScanIterator() {
 
 }
