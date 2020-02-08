@@ -10,13 +10,14 @@ Student 2 Name: Jie Yin
 2. Meta-data
 - Show your meta-data design (Tables and Columns table) and information about each column.
 Tables
-(1, "Tables", "Tables",true)
-(2, "Columns", "Columns",true)
+(1, "Tables", "Tables", true)
+(2, "Columns", "Columns", true)
 
 Columns
 (1, "table-id", TypeInt, 4 , 1)
 (1, "table-name", TypeVarChar, 50, 2)
 (1, "file-name", TypeVarChar, 50, 3)
+(1, "system-table", TypeInt, 4, 4)
 (2, "table-id", TypeInt, 4, 1)
 (2, "column-name",  TypeVarChar, 50, 2)
 (2, "column-type", TypeInt, 4, 3)
@@ -34,7 +35,7 @@ Record can be separate into 5 parts:
     The first part is redirectIndicator;
     the second part is an int size for attribute number;
     the third part is nullIndicator;
-    the fourth part is indices representing the end points of corresponding fields;
+    the fourth part is indices representing the end points of corresponding fields, and the start position of data;
     and the last part is data itself, which order corresponding to the order of recordDescriptor;
 Since we have index for each field, as long as we have dataOffset and differences between indices, which could be found
 at exact positions, we can reach to each field by calculating its offset and length in O(1).
@@ -79,9 +80,9 @@ in rbfm to update tuple. At last, we close this file as the end of this operatio
 
 Firstly, we get "fileName" from tableName through "tableNameToFileMap", and then we can open it by fileHandle.
 Also, we can get "recordDescriptor" from "tableNameToAttrMap", in this way, we call rbfm::scan to finish this operation.
-We design a class called "RBFM_ScanIterator" to get the next record.  When getNextRecord() is called, if current RID is
-valid and satisfies condition request, by gradually increase the slotNumber and pageNumber of current RID, a satisfying
-record can be fetched from the file.
+We design a class called "RBFM_ScanIterator" to get the next record. When getNextRecord() is called, if current RID is
+valid and satisfies condition request, we can read this whole record or a part of it into memory. By gradually increase
+the slotNumber and pageNumber of current RID, we can fetched more records from the file till the end.
 
 7. Implementation Detail
 - Other implementation details goes here.
