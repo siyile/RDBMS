@@ -169,7 +169,7 @@ RecordBasedFileManager::convertRecordToData(void *record, void *data, const std:
         }
     }
 
-    free(attrsExist);
+    delete[](attrsExist);
 };
 
 // data to record
@@ -239,7 +239,7 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
         }
     }
 
-    free(attrsExist);
+    delete[](attrsExist);
 
     recordSize = dataOffset;
 }
@@ -336,7 +336,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
     }
 
     std::cout << std::endl;
-    free(attrsExist);
+    delete[](attrsExist);
 
     return 0;
 }
@@ -467,7 +467,6 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
 
     for (unsigned i = 0; i < size; i++) {
         if (attrsExist[i] == 1) {
-            int prevAttrSize = attrFind;
             for (int j = 0; j < attributeNames.size(); j++) {
                 if (recordDescriptor[i].name == attributeNames[j]) {
                     attrType = recordDescriptor[i].type;
@@ -508,8 +507,8 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
         } // end if (attrsExist[i])
     }
 
-    free(nullIndicator);
-    free(attrsExist);
+    delete[](nullIndicator);
+    delete[](attrsExist);
     free(record);
 
     return 0;
