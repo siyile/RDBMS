@@ -96,9 +96,11 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
     void *record = malloc(length);
     if (readRecordFromPage(pageData, record, slotNum) == -1) {
         free(pageData);
+        free(record);
         return -1;
     }
 
+    
     free(pageData);
 
     // if record is redirected, then return the forwarded data
@@ -286,6 +288,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
     fileHandle.writePage(pageNum, data);
 
     free(data);
+    free(record);
     return 0;
 }
 
@@ -333,6 +336,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
     }
 
     std::cout << std::endl;
+    free(attrsExist);
 
     return 0;
 }
