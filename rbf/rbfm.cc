@@ -166,6 +166,8 @@ RecordBasedFileManager::convertRecordToData(void *record, void *data, const std:
             // do nothing
         }
     }
+
+    free(attrsExist);
 };
 
 // data to record
@@ -234,6 +236,8 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
             // do nothing
         }
     }
+
+    free(attrsExist);
 
     recordSize = dataOffset;
 }
@@ -617,6 +621,8 @@ RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const v
         }
     }
     pos += nullIndicatorSize;
+
+    free(block);
 }
 
 unsigned RecordBasedFileManager::getTargetRecordOffset(void *data, unsigned slotNum) {
@@ -808,6 +814,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &curRID, void *data) {
                 curRID.slotNum = rid.slotNum;
                 curRID.pageNum = rid.pageNum;
 
+                free(pageData);
                 // if need all attr, just read whole record
                 if (recordDescriptor.size() == attributeNames.size()) {
                     rbfm->readRecord(*fileHandle, recordDescriptor, rid, data);
