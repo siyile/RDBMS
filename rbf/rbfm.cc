@@ -96,8 +96,10 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
     void *record = malloc(length);
     if (readRecordFromPage(pageData, record, slotNum) == -1) {
         free(pageData);
+        free(record);
         return -1;
     }
+
 
     free(pageData);
 
@@ -166,6 +168,8 @@ RecordBasedFileManager::convertRecordToData(void *record, void *data, const std:
             // do nothing
         }
     }
+
+    delete[](attrsExist);
 };
 
 // data to record
@@ -235,6 +239,8 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
         }
     }
 
+    delete[](attrsExist);
+
     recordSize = dataOffset;
 }
 
@@ -282,6 +288,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
     fileHandle.writePage(pageNum, data);
 
     free(data);
+    free(record);
     return 0;
 }
 
@@ -329,6 +336,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
     }
 
     std::cout << std::endl;
+    delete[](attrsExist);
 
     return 0;
 }
@@ -459,7 +467,6 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
 
     for (unsigned i = 0; i < size; i++) {
         if (attrsExist[i] == 1) {
-            int prevAttrSize = attrFind;
             for (int j = 0; j < attributeNames.size(); j++) {
                 if (recordDescriptor[i].name == attributeNames[j]) {
                     attrType = recordDescriptor[i].type;
@@ -486,6 +493,9 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                     attrFind++;
                     // if found enough data, terminate scan early
                     if (attrFind == attributeNames.size()) {
+                        delete[](nullIndicator);
+                        delete[](attrsExist);
+                        free(record);
                         return 0;
                     }
                 } else {
@@ -499,6 +509,10 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
             // if attr not exist, do nothing
         } // end if (attrsExist[i])
     }
+
+    delete[](nullIndicator);
+    delete[](attrsExist);
+    free(record);
 
     return 0;
 }
@@ -617,6 +631,8 @@ RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const v
         }
     }
     pos += nullIndicatorSize;
+
+    free(block);
 }
 
 unsigned RecordBasedFileManager::getTargetRecordOffset(void *data, unsigned slotNum) {
@@ -808,6 +824,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &curRID, void *data) {
                 curRID.slotNum = rid.slotNum;
                 curRID.pageNum = rid.pageNum;
 
+                free(pageData);
                 // if need all attr, just read whole record
                 if (recordDescriptor.size() == attributeNames.size()) {
                     rbfm->readRecord(*fileHandle, recordDescriptor, rid, data);
