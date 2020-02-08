@@ -493,6 +493,9 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                     attrFind++;
                     // if found enough data, terminate scan early
                     if (attrFind == attributeNames.size()) {
+                        delete[](nullIndicator);
+                        delete[](attrsExist);
+                        free(record);
                         return 0;
                     }
                 } else {
