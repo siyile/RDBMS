@@ -92,6 +92,8 @@ public:
 
     RC deleteTuple(const std::string &tableName, const RID &rid);
 
+    RC deleteTuple(const std::string &tableName, const RID &rid, bool isInternalCall);
+
     RC updateTuple(const std::string &tableName, const void *data, const RID &rid);
 
     RC readTuple(const std::string &tableName, const RID &rid, void *data);

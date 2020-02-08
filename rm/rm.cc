@@ -168,7 +168,7 @@ RC RelationManager::deleteTable(const std::string &tableName) {
 
         // if find the tuple in TABLES, delete the record
         if (tableName == tupleTableName) {
-            deleteTuple(TABLES_NAME, rid);
+            deleteTuple(TABLES_NAME, rid, true);
         }
     }
 
@@ -184,7 +184,7 @@ RC RelationManager::deleteTable(const std::string &tableName) {
 
         // if find the tuple in COLUMNS, delete the record
         if (id == tupleID) {
-            deleteTuple(COLUMNS_NAME, rid);
+            deleteTuple(COLUMNS_NAME, rid, true);
         }
     }
     free(data);
@@ -239,11 +239,15 @@ RC RelationManager::insertTuple(const std::string &tableName, const void *data, 
 }
 
 RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
+    return deleteTuple(tableName, rid, false);
+}
+
+RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid, bool isInternalCall) {
     if (tableNameToAttrMap.count(tableName) == 0) {
         return -1;
     }
 
-    if (tableNameToIsSystemTableMap[tableName]) {
+    if (!isInternalCall && tableNameToIsSystemTableMap[tableName]) {
         return -1;
     }
 
