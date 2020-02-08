@@ -88,6 +88,8 @@ public:
 
     RC insertTuple(const std::string &tableName, const void *data, RID &rid);
 
+    RC insertTuple(const std::string &tableName, const void *data, RID &rid, bool isInternalCall);
+
     RC deleteTuple(const std::string &tableName, const RID &rid);
 
     RC updateTuple(const std::string &tableName, const void *data, const RID &rid);
