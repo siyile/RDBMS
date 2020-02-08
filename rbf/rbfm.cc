@@ -100,7 +100,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
         return -1;
     }
 
-    
+
     free(pageData);
 
     // if record is redirected, then return the forwarded data
@@ -507,6 +507,10 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
             // if attr not exist, do nothing
         } // end if (attrsExist[i])
     }
+
+    free(nullIndicator);
+    free(attrsExist);
+    free(record);
 
     return 0;
 }
