@@ -10,9 +10,8 @@ Student 2 Name: Jie Yin
 2. Meta-data
 - Show your meta-data design (Tables and Columns table) and information about each column.
 Tables
-(1, "Tables", "Tables")
-(2, "Columns", "Columns")
-(3, "Employee", "Employee")
+(1, "Tables", "Tables",true)
+(2, "Columns", "Columns",true)
 
 Columns
 (1, "table-id", TypeInt, 4 , 1)
@@ -23,15 +22,10 @@ Columns
 (2, "column-type", TypeInt, 4, 3)
 (2, "column-length", TypeInt, 4, 4)
 (2, "column-position", TypeInt, 4, 5)
-(3, "empname", TypeVarChar, 30, 1)
-(3, "age", TypeInt, 4, 2)
-(3, "height", TypeReal, 4, 3)
-(3, "salary", TypeInt, 4, 4)
 
-Records in "Tables" and "Columns" are stored as above. In constructed function, we hard code format for these two tables
-by calling "appendAttr".We add one more parameter called "isSystemTable" in "createTable" to decide whether we are going
-to manage meta-data. We also designed "generateTablesData" and "generateColumnsData" to make meta-data fit in the format
-of "insertRecord" so that we can call "insertTuple" to insert data in system table.
+In "Tables", there are four attributes: table-id, table-name, file-name, system-indicator(decide whether we are going
+to manage meta-data).
+In "Columns", there are five attributes: table-id, column-name, column-type, column-length, column-position.
 
 3. Internal Record Format
 - Show your record format design and describe how your design satisfies O(1) field access. If not, just mention that your team hasn't implemented this feature.
@@ -47,7 +41,7 @@ at exact positions, we can reach to each field by calculating its offset and len
 
 - Describe how you store a VarChar field.
 
-For Varchar, we allocate extra space of int size at the front of this field to indicate the length of Varchar.
+Since there are directories at front, we can store Varchar field in the same way of storing other data types.
 
 4. Page Format
 - Show your page format design.
@@ -60,7 +54,8 @@ The whole page can be separate into four parts:
 
 5. File Format
 - Show your file format design
-Besides "Tables" and "Columns", other tables are designed in similar format.
+
+Besides "Tables" and "Columns", other tables are designed in similar format. Each table match to a file.
 For those files to store records, at its beginning, we use the first page to store its three attributes: readPageCount,
 writePageCount and appendPageCount. Record information will be inserting into the next page, which still be numbered as
 page0. And the rest of file are designed in page format.
@@ -85,14 +80,16 @@ in rbfm to update tuple. At last, we close this file as the end of this operatio
 Firstly, we get "fileName" from tableName through "tableNameToFileMap", and then we can open it by fileHandle.
 Also, we can get "recordDescriptor" from "tableNameToAttrMap", in this way, we call rbfm::scan to finish this operation.
 We design a class called "RBFM_ScanIterator" to get the next record.  When getNextRecord() is called, if current RID is
-valid and there is no condition request need to satisfy, by gradually increase the slotNumber and pageNumber of current
-RID, a satisfying record can be fetched from the file. When we call "scan", the whole file will be scanned and all the
-information in hashMaps will be updated.
-
+valid and satisfies condition request, by gradually increase the slotNumber and pageNumber of current RID, a satisfying
+record can be fetched from the file.
 
 7. Implementation Detail
 - Other implementation details goes here.
-除了讲所有map的使用方法 还有别的要说的吗
+
+We prepared five hashMaps for further operations: tableName -> fileName, tableName -> TableID, TableID -> tableName,
+tableName -> system, and tableName -> vector<Attribute>. In the construct function of RelationManager, we call a function
+called "initScanTablesOrColumns", which means before every movements we make, we will read physical file into memory maps.
+
 
 8. Other (optional)
 - Freely use this section to tell us about things that are related to the project 2, but not related to the other sections (optional)           
