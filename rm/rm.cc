@@ -125,12 +125,12 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
     RID _;
     void *data = malloc(SM_BLOCK);
     generateTablesData(curTableID, tableName, fileName, data, isSystemTable);
-    insertTuple(TABLES_NAME, data, _);
+    insertTuple(TABLES_NAME, data, _, true);
 
     for (unsigned i = 0; i < attrs.size(); i++) {
         Attribute attr = attrs[i];
         generateColumnsData(curTableID, attr, i + 1, data);
-        insertTuple(COLUMNS_NAME, data, _);
+        insertTuple(COLUMNS_NAME, data, _, true);
     }
 
     // create file if not exist
@@ -168,7 +168,7 @@ RC RelationManager::deleteTable(const std::string &tableName) {
 
         // if find the tuple in TABLES, delete the record
         if (tableName == tupleTableName) {
-            deleteTuple(TABLES_NAME, rid);
+            deleteTuple(TABLES_NAME, rid, true);
         }
     }
 
@@ -184,7 +184,7 @@ RC RelationManager::deleteTable(const std::string &tableName) {
 
         // if find the tuple in COLUMNS, delete the record
         if (id == tupleID) {
-            deleteTuple(COLUMNS_NAME, rid);
+            deleteTuple(COLUMNS_NAME, rid, true);
         }
     }
     free(data);
@@ -212,7 +212,15 @@ RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attr
 }
 
 RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) {
+    return insertTuple(tableName, data, rid, false);
+}
+
+RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid, bool isInternalCall) {
     if (tableNameToAttrMap.count(tableName) == 0) {
+        return -1;
+    }
+
+    if (!isInternalCall && tableNameToIsSystemTableMap[tableName]) {
         return -1;
     }
 
@@ -231,7 +239,15 @@ RC RelationManager::insertTuple(const std::string &tableName, const void *data, 
 }
 
 RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
+    return deleteTuple(tableName, rid, false);
+}
+
+RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid, bool isInternalCall) {
     if (tableNameToAttrMap.count(tableName) == 0) {
+        return -1;
+    }
+
+    if (!isInternalCall && tableNameToIsSystemTableMap[tableName]) {
         return -1;
     }
 
@@ -251,6 +267,10 @@ RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
 
 RC RelationManager::updateTuple(const std::string &tableName, const void *data, const RID &rid) {
     if (tableNameToAttrMap.count(tableName) == 0) {
+        return -1;
+    }
+
+    if (tableNameToIsSystemTableMap[tableName]) {
         return -1;
     }
 
