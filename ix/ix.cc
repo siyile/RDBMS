@@ -21,6 +21,20 @@ RC IndexManager::closeFile(IXFileHandle &ixFileHandle) {
     return -1;
 }
 
+/*
+ * search to find the bucket to insert record
+ *
+ * IF the bucket is not full
+ *  Then insert record
+ *  ELSE do split bucket
+ *          original node have ceil((L + 1) / 2) nodes
+ *          new node has floor((L + 1) / 2) nodes
+ *       move the ceil((L + 1) / 2) node to parent, repeat the process
+ *
+ * IF the root splits, threat it as if it has an empty parent, then split
+ *
+ *
+ */
 RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
     return -1;
 }
