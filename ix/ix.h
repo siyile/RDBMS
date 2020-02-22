@@ -60,8 +60,8 @@ public:
 
     // return the page of the required leave node
     // if node not found, return -1
-    static RC searchNodePage(IXFileHandle &ixFileHandle, const void *key, void *returnPage, AttrType type,
-                      std::stack<void *> parents, std::stack<unsigned> parentsPageNum);
+    static RC searchNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type, std::stack<void *> parents,
+                             std::stack<unsigned> parentsPageNum);
 
     static void initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &pageNum, bool isLeafLayer);
 
@@ -134,7 +134,7 @@ public:
     unsigned ixWritePageCounter;
     unsigned ixAppendPageCounter;
 
-    int rootPageNum;
+    unsigned rootPageNum;
 
     FileHandle fileHandle;
 
