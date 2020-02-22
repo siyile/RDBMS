@@ -31,6 +31,8 @@ RC PagedFileManager::createFile(const std::string &fileName) {
         for (int i = 0; i < 3; i++) {
             outfile.write(reinterpret_cast<const char *>(&x), sizeof(x));
         }
+        unsigned y = NOT_VALID_UNSIGNED_SIGNAL;
+        outfile.write(reinterpret_cast<const char *>(&y), sizeof(y));
         outfile.close();
     }
     return 0;

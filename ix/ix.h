@@ -5,8 +5,19 @@
 #include <string>
 
 #include "../rbf/rbfm.h"
+#include "../rbf/pfm.h"
 
 # define IX_EOF (-1)  // end of the index scan
+#define IX_INIT_FREE_SPACE 4083
+#define IX_FREE_SPACE_POS 4084
+#define IX_TOTAL_SLOT_POS 4088
+#define IX_LEAF_LAYER_FLAG_POS 4083
+#define IX_NEXT_PAGE_NUM_POS 4092
+#define LEAF_LAYER_FLAG 0x01
+#define NODE_INDICATOR_SIZE 1
+#define LEAF_SIZE_WITHOUT_KEY 10
+#define NONE_LEAF_SIZE_WITHOUT_KEY 5
+#define SLOT_SIZE 8
 
 class IX_ScanIterator;
 
@@ -47,6 +58,50 @@ public:
     // Print the B+ tree in pre-order (in a JSON record format)
     void printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const;
 
+    // return the page of the required leave node
+    // if node not found, return -1
+    static RC searchNodePage(IXFileHandle &ixFileHandle, const void *key, void *returnPage, AttrType type,
+                      std::stack<void *> parents, std::stack<unsigned> parentsPageNum);
+
+    static void initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &pageNum, bool isLeafLayer);
+
+    static unsigned getFreeSpace(void *data);
+
+    static void setFreeSpace(void *data, unsigned freeSpace);
+
+    static unsigned getTotalSlot(void *data);
+
+    static void setTotalSlot(void *data, unsigned totalSlot);
+
+    static bool isLeafLayer(void *data);
+
+    static void setLeafLayer(void *data, bool isLeafLayer);
+
+    static unsigned getNextPageNum(void *data);
+
+    static void setNextPageNum(void *data, unsigned nextPageNum);
+
+    static void getSlotOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length);
+
+    static void setSlotOffsetAndLength(void *data, unsigned slotNum, unsigned offset, unsigned length);
+
+    static void getNodeData(void *pageData, void *data, unsigned offset, unsigned length);
+
+    static void setNodeData(void *pageData, void *data, unsigned offset, unsigned length);
+
+    // return 1 if key > block, -1 key < block, 0 key == block
+    static int compareMemoryBlock(const void *key, void *slotData, unsigned slotLength, AttrType type, bool isLeaf);
+
+    static unsigned getNextPageFromNotLeafNode(void *data);
+
+    static void rightShiftSlot(void *data, unsigned startSlot, unsigned shiftLength);
+
+    static unsigned searchLeafNode(void* data, const void* key, AttrType type, CompOp compOp);
+
+    static void keyToLeafNode(const void *key, const RID &rid, void *data, unsigned &length, AttrType type);
+
+    static void keyToNoneLeafNode(const void *key, unsigned pageNum, void *data, unsigned &length, AttrType type);
+
 protected:
     IndexManager() = default;                                                   // Prevent construction
     ~IndexManager() = default;                                                  // Prevent unwanted destruction
@@ -79,6 +134,10 @@ public:
     unsigned ixWritePageCounter;
     unsigned ixAppendPageCounter;
 
+    int rootPageNum;
+
+    FileHandle fileHandle;
+
     // Constructor
     IXFileHandle();
 
@@ -88,6 +147,14 @@ public:
     // Put the current counter values of associated PF FileHandles into variables
     RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
 
+    // routine from pfm
+    unsigned getNumberOfPages();
+    RC readPage(PageNum pageNum, void *data);                           // Get a specific page
+    RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
+    RC appendPage(const void *data);                                    // Append a specific page
+
+    void _readRootPageNum();
+    void _writeRootPageNum();
 };
 
 #endif
