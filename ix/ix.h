@@ -15,9 +15,9 @@
 #define IX_NEXT_PAGE_NUM_POS 4092
 #define LEAF_LAYER_FLAG 0x01
 #define NODE_INDICATOR_SIZE 1
-#define LEAF_SIZE_WITHOUT_KEY 10
-#define NONE_LEAF_SIZE_WITHOUT_KEY 5
 #define SLOT_SIZE 8
+#define DELETE_FLAG 0x80
+#define NORMAL_FLAG 0x00
 
 class IX_ScanIterator;
 
@@ -60,8 +60,8 @@ public:
 
     // return the page of the required leave node
     // if node not found, return -1
-    static RC searchNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type, std::stack<void *> parents,
-                             std::stack<unsigned> parentsPageNum);
+    static unsigned int searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type, std::stack<void *> parents,
+                                           std::stack<unsigned> parentsPageNum, bool rememberParents = true);
 
     static void initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &pageNum, bool isLeafLayer);
 
@@ -102,6 +102,16 @@ public:
 
     static void keyToNoneLeafNode(const void *key, unsigned pageNum, void *data, unsigned &length, AttrType type);
 
+    static void leafNodeToKey(void *data, unsigned slotNum, void* key, RID &rid, AttrType type);
+
+    static bool checkNodeNumValid(void *data, unsigned slotNum);
+
+    static bool checkNodeValid(void *data);
+
+    static void setNodeInvalid(void *data, unsigned slotNum);
+
+    static void freeParentsPageData(std::stack<void *> parents);
+
 protected:
     IndexManager() = default;                                                   // Prevent construction
     ~IndexManager() = default;                                                  // Prevent unwanted destruction
@@ -112,6 +122,18 @@ protected:
 
 class IX_ScanIterator {
 public:
+
+    IndexManager* im;
+
+    const void *lowKey;
+    const void *highKey;
+    bool lowKeyInclusive;
+    bool highKeyInclusive;
+    Attribute attribute;
+    IXFileHandle *ixFileHandle;
+
+    unsigned slotNum;
+    void* pageData;
 
     // Constructor
     IX_ScanIterator();
