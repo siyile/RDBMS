@@ -24,7 +24,7 @@ void memProfile() {
     int who = RUSAGE_SELF;
     struct rusage usage{};
     getrusage(who, &usage);
-    std::cerr << usage.ru_maxrss << "KB" << std::endl;
+    std::cout << usage.ru_maxrss << "KB" << std::endl;
 }
 
 // Function to prepare the data in the correct form to be inserted/read/updated
@@ -175,71 +175,71 @@ void prepareTupleAfterAdd(const int nameLength, const std::string &name, const i
 
 void printTupleAfterDrop(const void *buffer, const unsigned tupleSize) {
     unsigned offset = 0;
-    std::cerr << "****Printing Buffer: Start****" << std::endl;
+    std::cout << "****Printing Buffer: Start****" << std::endl;
 
     int nameLength = 0;
     memcpy(&nameLength, (char *) buffer + offset, sizeof(int));
     offset += sizeof(int);
-    std::cerr << "nameLength: " << nameLength << std::endl;
+    std::cout << "nameLength: " << nameLength << std::endl;
 
     char *name = (char *) malloc(100);
     memcpy(name, (char *) buffer + offset, nameLength);
     name[nameLength] = '\0';
     offset += nameLength;
-    std::cerr << "name: " << name << std::endl;
+    std::cout << "name: " << name << std::endl;
 
     int age = 0;
     memcpy(&age, (char *) buffer + offset, sizeof(int));
     offset += sizeof(int);
-    std::cerr << "age: " << age << std::endl;
+    std::cout << "age: " << age << std::endl;
 
     float height = 0.0;
     memcpy(&height, (char *) buffer + offset, sizeof(float));
-    std::cerr << "height: " << height << std::endl;
+    std::cout << "height: " << height << std::endl;
 
-    std::cerr << "****Printing Buffer: End****" << std::endl << std::endl;
+    std::cout << "****Printing Buffer: End****" << std::endl << std::endl;
 }
 
 void printTupleAfterAdd(const void *buffer, const int tupleSize) {
     int offset = 0;
-    std::cerr << "****Printing Buffer: Start****" << std::endl;
+    std::cout << "****Printing Buffer: Start****" << std::endl;
 
     int nameLength = 0;
     memcpy(&nameLength, (char *) buffer + offset, sizeof(int));
     offset += sizeof(int);
-    std::cerr << "nameLength: " << nameLength << std::endl;
+    std::cout << "nameLength: " << nameLength << std::endl;
 
     char *name = (char *) malloc(100);
     memcpy(name, (char *) buffer + offset, nameLength);
     name[nameLength] = '\0';
     offset += nameLength;
-    std::cerr << "name: " << name << std::endl;
+    std::cout << "name: " << name << std::endl;
 
     int age = 0;
     memcpy(&age, (char *) buffer + offset, sizeof(int));
     offset += sizeof(int);
-    std::cerr << "age: " << age << std::endl;
+    std::cout << "age: " << age << std::endl;
 
     float height = 0;
     memcpy(&height, (char *) buffer + offset, sizeof(float));
     offset += sizeof(float);
-    std::cerr << "height: " << height << std::endl;
+    std::cout << "height: " << height << std::endl;
 
     int salary = 0;
     memcpy(&salary, (char *) buffer + offset, sizeof(int));
     offset += sizeof(int);
-    std::cerr << "salary: " << salary << std::endl;
+    std::cout << "salary: " << salary << std::endl;
 
     int ssn = 0;
     memcpy(&ssn, (char *) buffer + offset, sizeof(int));
-    std::cerr << "SSN: " << ssn << std::endl;
+    std::cout << "SSN: " << ssn << std::endl;
 
-    std::cerr << "****Printing Buffer: End****" << std::endl << std::endl;
+    std::cout << "****Printing Buffer: End****" << std::endl << std::endl;
 }
 
 // Create an employee table
 RC createTable(const std::string &tableName) {
-    std::cerr << "****Create Table " << tableName << " ****" << std::endl;
+    std::cout << "****Create Table " << tableName << " ****" << std::endl;
 
     // 1. Create Table ** -- made separate now.
     std::vector<Attribute> attrs;
@@ -267,7 +267,7 @@ RC createTable(const std::string &tableName) {
 
     RC rc = rm.createTable(tableName, attrs);
     assert(rc == success);
-    std::cerr << "****Table Created: " << tableName << " ****" << std::endl << std::endl;
+    std::cout << "****Table Created: " << tableName << " ****" << std::endl << std::endl;
 
     return success;
 }
@@ -314,7 +314,7 @@ void prepareLargeTuple(int attributeCount, unsigned char *nullAttributesIndicato
 
 // Create a large table for pressure test
 RC createLargeTable(const std::string &tableName) {
-    std::cerr << "***** Creating a Large Table: " << tableName << " *****" << std::endl;
+    std::cout << "***** Creating a Large Table: " << tableName << " *****" << std::endl;
 
     // 1. Create Table ** -- made separate now.
     std::vector<Attribute> attrs;
@@ -350,7 +350,7 @@ RC createLargeTable(const std::string &tableName) {
 
     RC rc = rm.createTable(tableName, attrs);
     assert(rc == success);
-    std::cerr << "***** A Large Table: " << tableName << " has created. *****" << std::endl << std::endl;
+    std::cout << "***** A Large Table: " << tableName << " has created. *****" << std::endl << std::endl;
 
     free(suffix);
 
@@ -426,6 +426,298 @@ void readSizesFromDisk(std::vector<int> &sizes, int numRecords) {
             sizes.push_back(size);
         }
         sizesFile.close();
+    }
+}
+
+
+// From here: functions required in the private test cases
+
+// Create a tweets table
+void createTweetTable(const std::string &tableName) {
+    std::cout << "***** Create a Tweet Table: " << tableName << " *****" << std::endl;
+
+    std::vector<Attribute> attrs;
+
+    Attribute attr;
+    attr.name = "tweetid";
+    attr.type = TypeInt;
+    attr.length = (AttrLength) 4;
+    attrs.push_back(attr);
+
+    attr.name = "userid";
+    attr.type = TypeInt;
+    attr.length = (AttrLength) 4;
+    attrs.push_back(attr);
+
+    attr.name = "sender_location";
+    attr.type = TypeReal;
+    attr.length = (AttrLength) 4;
+    attrs.push_back(attr);
+
+    attr.name = "send_time";
+    attr.type = TypeReal;
+    attr.length = (AttrLength) 4;
+    attrs.push_back(attr);
+
+    attr.name = "referred_topics";
+    attr.type = TypeVarChar;
+    attr.length = (AttrLength) 100;
+    attrs.push_back(attr);
+
+    attr.name = "message_text";
+    attr.type = TypeVarChar;
+    attr.length = (AttrLength) 100;
+    attrs.push_back(attr);
+
+    RC rc = rm.createTable(tableName, attrs);
+    assert(rc == success && "createTable() should not fail.");
+    std::cout << "***** Table Created: " << tableName << " *****" << std::endl;
+}
+
+// Prepare the data in the correct form to be inserted/read
+void prepareTweetTuple(int attributeCount, unsigned char *nullAttributesIndicator, const int tweetid, const int userid,
+                       const float sender_location, const float send_time, const int referred_topicsLength,
+                       const std::string &referred_topics, const int message_textLength,
+                       const std::string &message_text, void *buffer, unsigned *recordSize) {
+
+    int offset = 0;
+
+    // Null-indicators
+    bool nullBit = false;
+    int nullAttributesIndicatorActualSize = getActualByteForNullsIndicator(attributeCount);
+
+    // Null-indicator for the fields
+    memcpy((char *) buffer + offset, nullAttributesIndicator, nullAttributesIndicatorActualSize);
+    offset += nullAttributesIndicatorActualSize;
+
+    // Beginning of the actual data
+    // Note that the left-most bit represents the first field. Thus, the offset is 7 from right, not 0.
+    // e.g., if a tuple consists of four attributes and they are all nulls, then the bit representation will be: [11110000]
+
+    // Is the tweetid field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 7);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &tweetid, sizeof(int));
+        offset += sizeof(int);
+    }
+
+    // Is the userid field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 6);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &userid, sizeof(int));
+        offset += sizeof(int);
+    }
+
+
+    // Is the sender_location field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 5);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &sender_location, sizeof(float));
+        offset += sizeof(float);
+    }
+
+
+    // Is the sender_time field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 4);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &send_time, sizeof(float));
+        offset += sizeof(float);
+    }
+
+
+    // Is the referred_topics field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 3);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &referred_topicsLength, sizeof(int));
+        offset += sizeof(int);
+        memcpy((char *) buffer + offset, referred_topics.c_str(), referred_topicsLength);
+        offset += referred_topicsLength;
+    }
+
+
+    // Is the message_text field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 2);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &message_textLength, sizeof(int));
+        offset += sizeof(int);
+        memcpy((char *) buffer + offset, message_text.c_str(), message_textLength);
+        offset += message_textLength;
+    }
+
+    *recordSize = offset;
+}
+
+void prepareTweetTupleAfterDrop(int attributeCount, unsigned char *nullAttributesIndicator, const int tweetid,
+                                const int userid, const float sender_location, const float send_time,
+                                const int message_textLength, const std::string &message_text, void *buffer,
+                                unsigned *recordSize) {
+
+    int offset = 0;
+
+    // Null-indicators
+    bool nullBit = false;
+    int nullAttributesIndicatorActualSize = getActualByteForNullsIndicator(attributeCount);
+
+    // Null-indicator for the fields
+    memcpy((char *) buffer + offset, nullAttributesIndicator, nullAttributesIndicatorActualSize);
+    offset += nullAttributesIndicatorActualSize;
+
+    // Beginning of the actual data
+    // Note that the left-most bit represents the first field. Thus, the offset is 7 from right, not 0.
+    // e.g., if a tuple consists of four attributes and they are all nulls, then the bit representation will be: [11110000]
+
+    // Is the tweetid field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 7);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &tweetid, sizeof(int));
+        offset += sizeof(int);
+    }
+
+    // Is the userid field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 6);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &userid, sizeof(int));
+        offset += sizeof(int);
+    }
+
+
+    // Is the sender_location field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 5);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &sender_location, sizeof(float));
+        offset += sizeof(float);
+    }
+
+
+    // Is the sender_time field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 4);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &send_time, sizeof(float));
+        offset += sizeof(float);
+    }
+
+
+    // Is the message_text field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 3);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &message_textLength, sizeof(int));
+        offset += sizeof(int);
+        memcpy((char *) buffer + offset, message_text.c_str(), message_textLength);
+        offset += message_textLength;
+    }
+
+    *recordSize = offset;
+}
+
+void prepareTweetTupleAfterAdd(int attributeCount, unsigned char *nullAttributesIndicator, const int tweetid,
+                               const int userid, const float sender_location, const float send_time,
+                               const int referred_topicsLength, const std::string &referred_topics,
+                               const int message_textLength, const std::string &message_text,
+                               const int status_msgLength, const std::string &status_msg, void *buffer,
+                               unsigned *recordSize) {
+
+    int offset = 0;
+
+    // Null-indicators
+    bool nullBit = false;
+    int nullAttributesIndicatorActualSize = getActualByteForNullsIndicator(attributeCount);
+
+    // Null-indicator for the fields
+    memcpy((char *) buffer + offset, nullAttributesIndicator, nullAttributesIndicatorActualSize);
+    offset += nullAttributesIndicatorActualSize;
+
+    // Beginning of the actual data
+    // Note that the left-most bit represents the first field. Thus, the offset is 7 from right, not 0.
+    // e.g., if a tuple consists of four attributes and they are all nulls, then the bit representation will be: [11110000]
+
+    // Is the tweetid field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 7);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &tweetid, sizeof(int));
+        offset += sizeof(int);
+    }
+
+    // Is the userid field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 6);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &userid, sizeof(int));
+        offset += sizeof(int);
+    }
+
+    // Is the sender_location field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 5);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &sender_location, sizeof(float));
+        offset += sizeof(float);
+    }
+
+    // Is the sender_time field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 4);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &send_time, sizeof(float));
+        offset += sizeof(float);
+    }
+
+    // Is the referred_topics field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 3);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &referred_topicsLength, sizeof(int));
+        offset += sizeof(int);
+        memcpy((char *) buffer + offset, referred_topics.c_str(), referred_topicsLength);
+        offset += referred_topicsLength;
+    }
+
+    // Is the message_text field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 2);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &message_textLength, sizeof(int));
+        offset += sizeof(int);
+        memcpy((char *) buffer + offset, message_text.c_str(), message_textLength);
+        offset += message_textLength;
+    }
+
+    // Is the status_msg field not-NULL?
+    nullBit = nullAttributesIndicator[0] & ((unsigned) 1 << (unsigned) 1);
+    if (!nullBit) {
+        memcpy((char *) buffer + offset, &status_msgLength, sizeof(int));
+        offset += sizeof(int);
+        memcpy((char *) buffer + offset, status_msg.c_str(), status_msgLength);
+        offset += status_msgLength;
+    }
+
+    *recordSize = offset;
+}
+
+// Write UserIDs to a disk - do not use this code.
+//This is not a page-based operation. For test purpose only.
+void writeUserIdsToDisk(std::set<int> &userIds) {
+    std::set<int>::iterator it;
+    remove("user_ids_file");
+    std::ofstream user_idsFile("user_ids_file", std::ios::out | std::ios::trunc | std::ios::binary);
+
+    if (user_idsFile.is_open()) {
+        user_idsFile.seekp(0, std::ios::beg);
+        for (it = userIds.begin(); it != userIds.end(); ++it) {
+            user_idsFile.write(reinterpret_cast<const char *>(&*it), sizeof(int));
+        }
+        user_idsFile.close();
+    }
+}
+
+// Read ages from the disk - do not use this code.
+//This is not a page-based operation. For test purpose only.
+void readUserIdsFromDisk(std::set<int> &userids, int numRecords) {
+    int userid;
+
+    std::ifstream user_idsFile("user_ids_file", std::ios::in | std::ios::binary);
+    if (user_idsFile.is_open()) {
+
+        user_idsFile.seekg(0, std::ios::beg);
+        for (int i = 0; i < numRecords; i++) {
+            user_idsFile.read(reinterpret_cast<char *>(&userid), sizeof(int));
+            userids.insert(userid);
+        }
+        user_idsFile.close();
     }
 }
 #endif
