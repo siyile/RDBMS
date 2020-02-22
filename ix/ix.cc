@@ -122,43 +122,85 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         setNodeData(pageData, nodeData, startSlotOffset, nodeLength);
     } else {
         // else we need to split page
-        void* page1 = malloc(PAGE_SIZE);
-        void* originNode = malloc(PAGE_SIZE);
+        void* page3 = malloc(PAGE_SIZE);
+        void* page1 = pageData;
+        void* iNode = malloc(PAGE_SIZE);
         bool isLeaf = true;
 
         while (freeSpace < nodeLength + SLOT_SIZE) {
-            memcpy(page1, pageData, PAGE_SIZE);
-            // i is the node in original order, use it in page1
-            // j is the node for current order, use it in pageData
-            unsigned i = 0, j = 0, L = getTotalSlot(pageData);
+            memcpy(page3, page1, PAGE_SIZE);
+            // i is the node in original order, use it in page3
+            // j is the node for current order, use it in page1
+            unsigned i = 0, j = 0, L = getTotalSlot(page1);
             bool found = false;
             unsigned firstPageNum = ceil((L + 1) * 1.0 / 2);
+            unsigned offset, length;
 
-            // spilt process for the first page
+            // spilt process for the first page(PAGE_DATA)
             while (j < firstPageNum) {
+                getSlotOffsetAndLength(page3, i, offset, length);
+                getNodeData(page3, iNode, offset, length);
                 if (!found) {
-                    unsigned offset, length;
-                    getSlotOffsetAndLength(page1, i, offset, length);
-                    getNodeData(page1, originNode, offset, length);
-                    if (compareMemoryBlock(key, originNode, length, attribute.type, isLeaf) > 0) {
+                    if (compareMemoryBlock(key, iNode, length, attribute.type, isLeaf) > 0) {
                         i++;
                         j++;
                         continue;
                     } else {
                         // insert node into PAGE
-                        setSlotOffsetAndLength(pageData, j, offset, nodeLength);
-                        setNodeData(pageData, nodeData, offset, nodeLength);
+                        setSlotOffsetAndLength(page1, j, offset, nodeLength);
+                        setNodeData(page1, nodeData, offset, nodeLength);
                         j++;
                         found = true;
                     }
                 } else {
                     // write node_i into PAGE
-                    unsigned offset, length;
-                    getSlotOffsetAndLength(page1, i, offset, length);
-                    getNodeData(page1, originNode, offset, length);
                     offset += nodeLength;
-                    setSlotOffsetAndLength(pageData, j, offset + nodeLength, length);
-                    setNodeData(pageData, originNode, offset, length);
+                    setSlotOffsetAndLength(page1, j, offset + nodeLength, length);
+                    setNodeData(page1, iNode, offset, length);
+                    i++;
+                    j++;
+                }
+            }
+
+            // store & prepare for insert in parent level, fill in node & node length
+            // IF node is not leaf node = <KEY, INDICATOR, PAGE_NUM> <1, key_size, 4> (bytes)
+            // IF node is leaf node = <KEY, INDICATOR, RID> <1, key_size, 9> (bytes)
+            if (isLeaf) {
+                getSlotOffsetAndLength(page1, firstPageNum - 1, offset, length);
+                getNodeData(page1, nodeData, offset, length);
+                // substitute RID into PAGE_NUM
+                memcpy((char *) nodeData + length - RID_SIZE, pageNum, UNSIGNED_SIZE);
+                nodeLength -= RID_SIZE - UNSIGNED_SIZE;
+            } else {
+                getSlotOffsetAndLength(page1, firstPageNum - 1, offset, length);
+                getNodeData(page1, nodeData, offset, length);
+                memcpy((char *) nodeData + length - UNSIGNED_SIZE, pageNum, UNSIGNED_SIZE);
+            }
+
+            if (isLeaf) {
+                // write nextPageNum for page1, page1 link to page2
+                setNextPageNum(page1, ixFileHandle.getNumberOfPages());
+            }
+
+            // split process for second page(PAGE2)
+            void *page2 = malloc(PAGE_SIZE);
+            j = 0;
+            unsigned offsetInPage1, _;
+            unsigned page2ExtraOffset = 0;
+            getSlotOffsetAndLength(page3, i, offsetInPage1, _);
+            while (i < L) {
+                getSlotOffsetAndLength(page3, i, offset, length);
+                getNodeData(page3, iNode, offset, length);
+                if (!found && compareMemoryBlock(key, iNode, length, attribute.type, true) < 0) {
+                    setSlotOffsetAndLength(page2, j, offset - offsetInPage1, nodeLength);
+                    setNodeData(page2, nodeData, offset - offsetInPage1, nodeLength);
+                    found = true;
+                    i--;
+                    j++;
+                }  else {
+                    // write node_i into PAGE2
+                    setSlotOffsetAndLength(page2, j, offset - offsetInPage1 + page2ExtraOffset, length);
+                    setNodeData(page2, iNode, offset - offsetInPage1 + page2ExtraOffset, length);
                     i++;
                     j++;
                 }
