@@ -122,9 +122,9 @@ public:
 
     static void freeParentsPageData(std::stack<void *> parents);
 
-    static void preOrderPrint(IXFileHandle ixFileHandle, unsigned pageNum, AttrType type, unsigned level);
+    static void preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, AttrType type, unsigned level);
 
-    static void printIndentation(unsigned num);
+    static std::string indentation(unsigned num);
 
     static void printKey(void *key, AttrType type);
 

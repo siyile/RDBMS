@@ -214,15 +214,12 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         // store & prepare for insert in parent level, fill in node & node length
         // IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
         // IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 9> (bytes)
+        getNodeDataAndOffsetAndLength(page1, nodePassToParent, firstPageNum - 1, offset, length);
         if (isLeaf) {
-            getSlotOffsetAndLength(page1, firstPageNum - 1, offset, length);
-            getNodeData(page1, nodePassToParent, offset, length);
             // substitute RID into PAGE_NUM
             memcpy((char *) nodePassToParent + length - RID_SIZE, &page1Num, UNSIGNED_SIZE);
             nodePassToParentLength = nodeLength - RID_SIZE + UNSIGNED_SIZE;
         } else {
-            getSlotOffsetAndLength(page1, firstPageNum - 1, offset, length);
-            getNodeData(page1, nodePassToParent, offset, length);
             memcpy((char *) nodePassToParent + length - UNSIGNED_SIZE, &page1Num, UNSIGNED_SIZE);
             nodePassToParentLength = nodeLength;
         }
@@ -413,78 +410,88 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
  *  IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
  *
  * func preOrder:
- *  PRINT "{"
  *  IF node is leaf node:
  *      check valid, then print all the LEAF KEY & RID
  *      RETURN
  *  IF node is none leaf node:
  *      PRINT all keys in keys.
+ *      PRINT all children
  *
  *  PRINT "children ["
  *
  *  For node in nodes:
  *      preOrder(node)
  *
- *  PRINT "]"
- *
- *  PRINT "}"
  *
  * */
 void IndexManager::printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const {
 
 }
 
-void IndexManager::preOrderPrint(IXFileHandle ixFileHandle, unsigned pageNum, AttrType type, unsigned level) {
+void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, AttrType type, unsigned level) {
     void* pageData = malloc(PAGE_SIZE);
     void* nodeData = malloc(PAGE_SIZE);
-    ixFileHandle.readPage(pageNum, pageData);
+    ixFileHandle->readPage(pageNum, pageData);
     unsigned totalSlot = getTotalSlot(pageData);
     unsigned offset, length;
     void* key = malloc(PAGE_SIZE);
     bool leafLayer = isLeafLayer(pageData);
 
-    printIndentation(level);
-    std::cout<<"{\"keys\": [";
+    std::cout<< indentation(level) << "{\"keys\": [";
     if (leafLayer) {
         // print "keys": ["Q:[(10,1)], Deleted","R:[(11,1)]","S:[(12,1)]"]
+        bool fistFound = false;
         for (unsigned i = 0; i < totalSlot; ++i) {
-            if (i != 0) std::cout << ",";
+            if (!checkNodeNumValid(pageData, i)) {
+                continue;
+            }
+            if (fistFound) std::cout << ",";
             RID rid;
             leafNodeToKey(pageData, i, key, rid, type);
             std::cout << "\"";
             printKey(key, type);
             std::cout << ":";
             printRID(rid);
-
-            // TODO: remove delete signal
-            if (!checkNodeNumValid(pageData, i)) {
-                std::cout << ", Deleted";
-            }
             std::cout << "\"";
+            fistFound = true;
         }
+        std::cout << "]}";
     } else {
         // "keys":["P", "G"],
+        std::vector<unsigned> pageNums;
         for (unsigned i = 0; i < totalSlot; ++i) {
             if (i != 0) std::cout << ",";
             noneLeafNodeToKey(pageData, i, key, pageNum, type);
+            pageNums.push_back(pageNum);
             std::cout << "\"";
             printKey(key, type);
             std::cout << "\"";
         }
+        std::cout << "]},\n" << indentation(level) << "\"children\": [\n";
+        bool first = true;
+        for (auto num : pageNums) {
+            if (!first) {
+                std::cout << ",\n";
+            }
+            preOrderPrint(ixFileHandle, num, type, level + 1);
+            first = false;
+        }
+        std::cout << "\n";
+
+        std::cout << indentation(level) << "]}";
     }
-
-    std::cout << "]}\n";
-
-
 
     free(nodeData);
     free(pageData);
+    free(key);
 }
 
-void IndexManager::printIndentation(unsigned num) {
+std::string IndexManager::indentation(unsigned num) {
+    std::string string;
     for (unsigned i = 0; i < num; ++i) {
-        std::cout<<"\t";
+        string += "\t";
     }
+    return string;
 }
 
 
