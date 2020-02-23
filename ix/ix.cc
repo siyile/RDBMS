@@ -228,7 +228,9 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         page2Num = ixFileHandle.getNumberOfPages();
 
         if (isLeaf) {
-            // write nextPageNum for page1, page1 link to page2
+            // write nextPageNum for page1, page1 link to page2, page2 link to page1's next page
+            unsigned page1NextPage = getNextPageNum(page1);
+            setNextPageNum(page2, page1NextPage);
             setNextPageNum(page1, page2Num);
         }
 
