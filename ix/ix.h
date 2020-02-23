@@ -18,6 +18,8 @@
 #define SLOT_SIZE 8
 #define DELETE_FLAG 0x80
 #define NORMAL_FLAG 0x00
+#define MAX_VALUE_SIGNAL 98764155
+#define MAX_VALUE_SIGNAL_STRING "zxyadf"
 
 class IX_ScanIterator;
 
@@ -63,7 +65,7 @@ public:
     static unsigned int searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type, std::stack<void *> parents,
                                            std::stack<unsigned> parentsPageNum, bool rememberParents = true);
 
-    static void initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &pageNum, bool isLeafLayer);
+    static void initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &pageNum, bool isLeafLayer, AttrType type);
 
     static unsigned getFreeSpace(void *data);
 
@@ -73,7 +75,7 @@ public:
 
     static void setTotalSlot(void *data, unsigned totalSlot);
 
-    static bool isLeafLayer(void *data);
+    static bool isLeafLayer(void *pageData);
 
     static void setLeafLayer(void *data, bool isLeafLayer);
 
@@ -89,6 +91,10 @@ public:
 
     static void setNodeData(void *pageData, void *data, unsigned offset, unsigned length);
 
+    static void getNodeDataAndOffsetAndLength(void* pageData, void* nodeData, unsigned slotNum, unsigned &offset, unsigned &length);
+
+    static void addNode(void* pageData, void* nodeData, unsigned slotNum, unsigned offset, unsigned length);
+
     // return 1 if key > block, -1 key < block, 0 key == block
     static int compareMemoryBlock(const void *key, void *slotData, unsigned slotLength, AttrType type, bool isLeaf);
 
@@ -96,13 +102,17 @@ public:
 
     static void rightShiftSlot(void *data, unsigned startSlot, unsigned shiftLength);
 
-    static unsigned searchLeafNode(void* data, const void* key, AttrType type, CompOp compOp);
+    static unsigned int searchNode(void *data, const void *key, AttrType type, CompOp compOp, bool isLeaf);
 
     static void keyToLeafNode(const void *key, const RID &rid, void *data, unsigned &length, AttrType type);
 
     static void keyToNoneLeafNode(const void *key, unsigned pageNum, void *data, unsigned &length, AttrType type);
 
     static void leafNodeToKey(void *data, unsigned slotNum, void* key, RID &rid, AttrType type);
+
+    static void noneLeafNodeToKey(void *data, unsigned slotNum, void* key, unsigned &pageNum, AttrType type);
+
+    static void generateMaxValueNode(void *key, void *nodeData, unsigned &length, AttrType type);
 
     static bool checkNodeNumValid(void *data, unsigned slotNum);
 
@@ -111,6 +121,14 @@ public:
     static void setNodeInvalid(void *data, unsigned slotNum);
 
     static void freeParentsPageData(std::stack<void *> parents);
+
+    static void preOrderPrint(IXFileHandle ixFileHandle, unsigned pageNum, AttrType type, unsigned level);
+
+    static void printIndentation(unsigned num);
+
+    static void printKey(void *key, AttrType type);
+
+    static void printRID(RID &rid);
 
 protected:
     IndexManager() = default;                                                   // Prevent construction
