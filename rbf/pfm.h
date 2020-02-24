@@ -5,7 +5,6 @@ typedef unsigned PageNum;
 typedef int RC;
 
 #define PAGE_SIZE 4096
-#define NOT_VALID_UNSIGNED_SIGNAL 123456789
 
 #include <string>
 #include <fstream>

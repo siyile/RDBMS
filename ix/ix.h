@@ -20,6 +20,14 @@
 #define NORMAL_FLAG 0x00
 #define MAX_VALUE_SIGNAL 98764155
 #define MAX_VALUE_SIGNAL_STRING "zxyadf"
+#define IX_RID_SIZE 8
+#define MIN_INT -2147483648
+#define MAX_INT 2147483647
+#define MIN_FLOAT 1.17549e-038
+#define MAX_FLOAT 3.40282e+038
+#define MIN_STRING "MIN_STRING"
+#define MAX_STRING "HIGH_STRING"
+#define NOT_VALID_UNSIGNED_SIGNAL 123456789
 
 class IX_ScanIterator;
 
@@ -62,10 +70,10 @@ public:
 
     // return the page of the required leave node
     // if node not found, return -1
-    static unsigned int searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type, std::stack<void *> parents,
-                                           std::stack<unsigned> parentsPageNum, bool rememberParents = true);
+    static unsigned int searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type, std::stack<void *> &parents,
+                                           std::stack<unsigned int> &parentsPageNum, bool rememberParents = true);
 
-    static void initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &pageNum, bool isLeafLayer, AttrType type);
+    static void initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &pageNum, bool isLeafLayer, AttrType type = TypeInt);
 
     static unsigned getFreeSpace(void *data);
 
@@ -121,6 +129,10 @@ public:
     static void setNodeInvalid(void *data, unsigned slotNum);
 
     static void freeParentsPageData(std::stack<void *> parents);
+
+    static void generateLowKey(void* key, AttrType type);
+
+    static void generateHighKey(void* key, AttrType type);
 
     static void preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, AttrType type, unsigned level);
 
