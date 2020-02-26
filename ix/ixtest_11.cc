@@ -130,7 +130,7 @@ int testCase_11(const std::string &indexFileName, const Attribute &attribute) {
     for (unsigned i = 5; i <= numOfTuples; i += 10) {
         key = i;
         rid.pageNum = key + 1;
-        rid.slotNum = key + 2;
+        rid.slotNum = (key + 2) % (SHRT_MAX);
 
         rc = indexManager.insertEntry(ixFileHandle, attribute, &key, rid);
         assert(rc == success && "indexManager::insertEntry() should not fail.");
