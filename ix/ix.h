@@ -147,6 +147,8 @@ public:
 
     static unsigned int getMinValueNodeLength(AttrType type, bool isLeaf);
 
+    static void generateFakeKey(void* fakeKey, const void* key, AttrType type);
+
 protected:
     IndexManager() = default;                                                   // Prevent construction
     ~IndexManager() = default;                                                  // Prevent unwanted destruction
@@ -159,8 +161,8 @@ public:
 
     IndexManager* im;
 
-    const void *lowKey;
-    const void *highKey;
+    void *lowKey;
+    void *highKey;
     bool lowKeyInclusive;
     bool highKeyInclusive;
     Attribute attribute;

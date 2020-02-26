@@ -194,13 +194,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     keyToLeafNode(key, rid, nodeData, nodeLength, attribute.type);
     // create copy of key, since key is const
     void *fakeKey = malloc(PAGE_SIZE);
-    if (attribute.type != TypeVarChar) {
-        memcpy(fakeKey, key, UNSIGNED_SIZE);
-    } else {
-        unsigned keyLength;
-        memcpy(&keyLength, key, UNSIGNED_SIZE);
-        memcpy(fakeKey, key, UNSIGNED_SIZE + keyLength);
-    }
+    generateFakeKey(fakeKey, key, attribute.type);
 
     // basic init
     unsigned freeSpace = getFreeSpace(pageData);
@@ -412,6 +406,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     free(page3);
     free(nodeData);
     free(iNode);
+    free(fakeKey);
     freeParentsPageData(parentPage);
 
     return 0;
@@ -479,20 +474,20 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle, const Attribute &attribute, co
     if (!ixFileHandle.isOpen()) {
         return -1;
     }
+    ix_ScanIterator.lowKey = malloc(PAGE_SIZE);
+    ix_ScanIterator.highKey = malloc(PAGE_SIZE);
     if (lowKey == nullptr) {
-        void *newLowKey = malloc(40);
-        generateLowKey(newLowKey, attribute.type);
-        ix_ScanIterator.lowKey = newLowKey;
+        generateLowKey(ix_ScanIterator.lowKey, attribute.type);
     } else {
-        ix_ScanIterator.lowKey = lowKey;
+        // copy low key
+        generateFakeKey(ix_ScanIterator.lowKey, lowKey, attribute.type);
     }
 
     if (highKey == nullptr) {
-        void *newHighKey = malloc(40);
-        generateHighKey(newHighKey, attribute.type);
-        ix_ScanIterator.highKey = newHighKey;
+        generateHighKey(ix_ScanIterator.highKey, attribute.type);
     } else {
-        ix_ScanIterator.highKey = highKey;
+        // copy high key
+        generateFakeKey(ix_ScanIterator.highKey, highKey, attribute.type);
     }
 
     ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
@@ -505,8 +500,10 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle, const Attribute &attribute, co
         std::stack<void *> parents;
         std::stack<unsigned> parentsPageNum;
         searchLeafNodePage(ixFileHandle, ix_ScanIterator.lowKey, attribute.type, parents, parentsPageNum, false, true);
-        ix_ScanIterator.pageData = parents.top();
+        ix_ScanIterator.pageData = malloc(PAGE_SIZE);
+        memcpy(ix_ScanIterator.pageData, parents.top(), PAGE_SIZE);
         ix_ScanIterator.pageNum = parentsPageNum.top();
+        free(parents.top());
     } else {
         ix_ScanIterator.pageData = malloc(PAGE_SIZE);
         memcpy(ix_ScanIterator.pageData, pageData, PAGE_SIZE);
@@ -728,6 +725,8 @@ IndexManager::searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, At
                 if (rememberParents) {
                     parents.push(parentPage);
                     parentsPageNum.push(curPageNum);
+                } else {
+                    free(parentPage);
                 }
 
                 ixFileHandle.readPage(nextPageNum, pageData);
@@ -1202,6 +1201,16 @@ unsigned int IndexManager::getMinValueNodeLength(AttrType type, bool isLeaf) {
     return length;
 }
 
+void IndexManager::generateFakeKey(void *fakeKey, const void *key, AttrType type) {
+    if (type != TypeVarChar) {
+        memcpy(fakeKey, key, UNSIGNED_SIZE);
+    } else {
+        unsigned keyLength;
+        memcpy(&keyLength, key, UNSIGNED_SIZE);
+        memcpy(fakeKey, key, UNSIGNED_SIZE + keyLength);
+    }
+}
+
 IX_ScanIterator::IX_ScanIterator() {
     im = &IndexManager::instance();
 }
@@ -1273,6 +1282,8 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key, bool checkDeleted, unsigne
 
 RC IX_ScanIterator::close() {
     free(pageData);
+    free(lowKey);
+    free(highKey);
     return 0;
 }
 
@@ -1314,6 +1325,7 @@ void IXFileHandle::_readRootPageNum() {
     readPage(0, data);
     unsigned pageNum;
     memcpy(&pageNum, data, UNSIGNED_SIZE);
+    free(data);
     rootPageNum = pageNum;
 }
 
