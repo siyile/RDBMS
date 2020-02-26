@@ -1261,6 +1261,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key, bool checkDeleted, unsigne
             pageNum = nextPage;
             ixFileHandle->readPage(nextPage, pageData);
             slotNum = 0;
+            totalSLot = im->getTotalSlot(pageData);
         }
     }
 
