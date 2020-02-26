@@ -644,12 +644,14 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
         // "keys":["P", "G"],
         std::vector<unsigned> pageNums;
         for (unsigned i = 0; i < totalSlot; ++i) {
-            if (i != 0) std::cout << ",";
+            if (i > 1) std::cout << ",";
             noneLeafNodeToKey(pageData, i, key, pageNum, type);
             pageNums.push_back(pageNum);
-            std::cout << "\"";
-            printKey(key, type);
-            std::cout << "\"";
+            if (i != 0) {
+                std::cout << "\"";
+                printKey(key, type);
+                std::cout << "\"";
+            }
         }
         std::cout << "],\n" << indentation(level) << "\"children\": [\n";
         bool first = true;
