@@ -591,24 +591,53 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
     unsigned offset, length;
     void* key = malloc(PAGE_SIZE);
     bool leafLayer = isLeafLayer(pageData);
+    void* startKey = malloc(PAGE_SIZE);
 
     std::cout<< indentation(level) << "{\"keys\": [";
     if (leafLayer) {
-        // print "keys": ["Q:[(10,1)], Deleted","R:[(11,1)]","S:[(12,1)]"]
+        // print "keys": ["Q:[(10,1),(11,2)]"]
         bool fistFound = false;
-        for (unsigned i = 0; i < totalSlot; ++i) {
-            if (!checkNodeNumValid(pageData, i)) {
-                continue;
-            }
-            if (fistFound) std::cout << ",";
-            RID rid;
+        RID rid;
+        for (unsigned i = 0; i < totalSlot; ) {
+            // find same key range
+            unsigned start = i, end = start + 1;
+            memset(key, 0, PAGE_SIZE);
             leafNodeToKey(pageData, i, key, rid, type);
+            memcpy(startKey, key, PAGE_SIZE);
+            while (end < totalSlot) {
+                if (!checkNodeNumValid(pageData, end)) {
+                    end++;
+                    continue;
+                }
+                memset(key, 0, PAGE_SIZE);
+                leafNodeToKey(pageData, end, key, rid, type);
+                if (memcmp(startKey, key, PAGE_SIZE) == 0) {
+                    end++;
+                } else {
+                    break;
+                }
+            }
+            leafNodeToKey(pageData, start, key, rid, type);
+            if (fistFound)
+                std::cout << ",";
             std::cout << "\"";
             printKey(key, type);
-            std::cout << ":";
-            printRID(rid);
-            std::cout << "\"";
+            std::cout << ":[";
+            bool firstFoundInner = false;
+            for (unsigned j = start; j < end; j++) {
+                if (!checkNodeNumValid(pageData, j)) {
+                    continue;
+                }
+                leafNodeToKey(pageData, j, key, rid, type);
+                if (firstFoundInner)
+                    std::cout << ",";
+                printRID(rid);
+                firstFoundInner = true;
+            }
+            std::cout << "]\"";
             fistFound = true;
+
+            i = end;
         }
         std::cout << "]}";
     } else {
@@ -638,6 +667,7 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
     free(nodeData);
     free(pageData);
     free(key);
+    free(startKey);
 }
 
 std::string IndexManager::indentation(unsigned num) {
@@ -668,7 +698,7 @@ void IndexManager::printKey(void *key, AttrType type) {
 
 // print "keys": ["Q:[(10,1)]","R:[(11,1)]","S:[(12,1)]"]
 void IndexManager::printRID(RID &rid) {
-    std::cout << "[(" << rid.pageNum << "," << rid.slotNum << ")]";
+    std::cout << "(" << rid.pageNum << "," << rid.slotNum << ")";
 }
 
 
