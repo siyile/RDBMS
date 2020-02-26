@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <stack>
 
 #include "../rbf/rbfm.h"
 #include "../rbf/pfm.h"
@@ -55,21 +56,21 @@ public:
     RC deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid);
 
     // Initialize and IX_ScanIterator to support a range search
-    RC scan(IXFileHandle &ixFileHandle,
-            const Attribute &attribute,
-            const void *lowKey,
-            const void *highKey,
-            bool lowKeyInclusive,
-            bool highKeyInclusive,
-            IX_ScanIterator &ix_ScanIterator);
+    static RC scan(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *lowKey, const void *highKey,
+            bool lowKeyInclusive, bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator, void *pageData = nullptr);
+
+    RC scan(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *lowKey, const void *highKey,
+            bool lowKeyInclusive, bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator);
 
     // Print the B+ tree in pre-order (in a JSON record format)
     void printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const;
 
     // return the page of the required leave node
     // if node not found, return -1
-    static unsigned int searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type, std::stack<void *> &parents,
-                                           std::stack<unsigned int> &parentsPageNum, bool rememberParents = true);
+    static unsigned int searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type,
+                                           std::stack<void *> &parents,
+                                           std::stack<unsigned int> &parentsPageNum, bool rememberParents,
+                                           bool checkDelete);
 
     static void initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &pageNum, bool isLeafLayer, AttrType type = TypeInt);
 
@@ -108,7 +109,8 @@ public:
 
     static void rightShiftSlot(void *data, unsigned startSlot, unsigned shiftLength);
 
-    static unsigned int searchNode(void *data, const void *key, AttrType type, CompOp compOp, bool isLeaf);
+    static unsigned int
+    searchNode(void *data, const void *key, AttrType type, CompOp compOp, bool isLeaf, bool checkDelete);
 
     static void keyToLeafNode(const void *key, const RID &rid, void *data, unsigned &length, AttrType type);
 
@@ -125,6 +127,8 @@ public:
     static bool checkNodeValid(void *data);
 
     static void setNodeInvalid(void *data, unsigned slotNum);
+
+    static void setNodeValid(void *data, unsigned slotNum);
 
     static void freeParentsPageData(std::stack<void *> &parents);
 
@@ -145,7 +149,6 @@ protected:
     ~IndexManager() = default;                                                  // Prevent unwanted destruction
     IndexManager(const IndexManager &) = default;                               // Prevent construction by copying
     IndexManager &operator=(const IndexManager &) = default;                    // Prevent assignment
-
 };
 
 class IX_ScanIterator {
@@ -161,6 +164,7 @@ public:
     IXFileHandle *ixFileHandle;
 
     unsigned slotNum;
+    unsigned pageNum;
     void* pageData;
 
     // Constructor
@@ -174,6 +178,9 @@ public:
 
     // Terminate index scan
     RC close();
+
+    RC getNextEntry(RID &rid, void *key, bool checkDeleted, unsigned &returnSlotNum, unsigned &returnPageNum,
+                    void *returnNodeData);
 };
 
 class IXFileHandle {
