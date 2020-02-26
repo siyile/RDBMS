@@ -57,7 +57,8 @@ public:
 
     // Initialize and IX_ScanIterator to support a range search
     static RC scan(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *lowKey, const void *highKey,
-            bool lowKeyInclusive, bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator, void *pageData = nullptr);
+                   bool lowKeyInclusive, bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator, void *pageData,
+                   unsigned pageNum);
 
     RC scan(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *lowKey, const void *highKey,
             bool lowKeyInclusive, bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator);

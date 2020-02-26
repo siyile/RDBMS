@@ -156,7 +156,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
     if (slotNum != NOT_VALID_UNSIGNED_SIGNAL) {
         IX_ScanIterator ixScanIterator;
-        scan(ixFileHandle, attribute, key, key, true, true, ixScanIterator, pageData);
+        scan(ixFileHandle, attribute, key, key, true, true, ixScanIterator, pageData, pageNum);
         RID rid1;
         void* key1 = malloc(PAGE_SIZE);
         unsigned slotNum1, pageNum1;
@@ -441,7 +441,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     void* pageData = parents.top();
 
     IX_ScanIterator ixScanIterator;
-    scan(ixFileHandle, attribute, key, key, true, true, ixScanIterator, pageData);
+    scan(ixFileHandle, attribute, key, key, true, true, ixScanIterator, pageData, parentsPageNum.top());
     RID rid1;
     void* key1 = malloc(PAGE_SIZE);
     unsigned slotNum1, pageNum1;
@@ -451,7 +451,9 @@ RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         if (rid.pageNum == rid1.pageNum && rid1.slotNum == rid.slotNum) {
             RC rc;
             if (checkNodeValid(nodeData)) {
-                ixFileHandle.readPage(pageNum1, pageData);
+                if (pageNum1 != parentsPageNum.top()) {
+                    ixFileHandle.readPage(pageNum1, pageData);
+                }
                 setNodeInvalid(pageData, slotNum1);
                 ixFileHandle.writePage(pageNum1, pageData);
                 rc = 0;
@@ -460,7 +462,6 @@ RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
             }
 
             free(key1);
-            free(pageData);
             freeParentsPageData(parents);
             ixScanIterator.close();
             free(nodeData);
@@ -470,7 +471,6 @@ RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
     // not found, return -1
     free(key1);
-    free(pageData);
     freeParentsPageData(parents);
     ixScanIterator.close();
     free(nodeData);
@@ -478,7 +478,8 @@ RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 }
 
 RC IndexManager::scan(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *lowKey, const void *highKey,
-                      bool lowKeyInclusive, bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator, void *pageData) {
+                      bool lowKeyInclusive, bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator, void *pageData,
+                      unsigned pageNum) {
     if (!ixFileHandle.isOpen()) {
         return -1;
     }
@@ -511,7 +512,9 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle, const Attribute &attribute, co
         ix_ScanIterator.pageData = parents.top();
         ix_ScanIterator.pageNum = parentsPageNum.top();
     } else {
-        ix_ScanIterator.pageData = pageData;
+        ix_ScanIterator.pageData = malloc(PAGE_SIZE);
+        memcpy(ix_ScanIterator.pageData, pageData, PAGE_SIZE);
+        ix_ScanIterator.pageNum = pageNum;
     }
 
     if (lowKeyInclusive) {
@@ -532,7 +535,8 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
                       bool lowKeyInclusive,
                       bool highKeyInclusive,
                       IX_ScanIterator &ix_ScanIterator) {
-    return scan(ixFileHandle, attribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive, ix_ScanIterator, nullptr);
+    return scan(ixFileHandle, attribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive, ix_ScanIterator, nullptr,
+                0);
 }
 
 /*
@@ -985,7 +989,7 @@ IndexManager::searchNode(void *data, const void *key, AttrType type, CompOp comp
 
     free(nodeData);
 
-    if (compOp == EQ_OP || compOp == GT_OP || compOp == GE_OP || compOp == LT_OP) {
+    if (compOp == EQ_OP || compOp == GT_OP || compOp == GE_OP || compOp == LT_OP || compOp == LE_OP) {
         return NOT_VALID_UNSIGNED_SIGNAL;
 //    } else if (compOp == GT_OP || compOp == GE_OP || compOp == LT_OP) {
 //        return totalSlot;
