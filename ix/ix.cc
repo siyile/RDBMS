@@ -43,8 +43,10 @@ RC IndexManager::destroyFile(const std::string &fileName) {
 
 RC IndexManager::openFile(const std::string &fileName, IXFileHandle &ixFileHandle) {
     RC rc = PagedFileManager::instance().openFile(fileName, ixFileHandle.fileHandle);
+    if (rc == -1)
+        return -1;
     ixFileHandle._readRootPageNum();
-    return rc;
+    return 0;
 }
 
 RC IndexManager::closeFile(IXFileHandle &ixFileHandle) {
@@ -183,6 +185,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     void *page3 = malloc(PAGE_SIZE);
     void *page1 = pageData;
     unsigned page1Num = pageNum;
+    unsigned tmpPage1Num = page1Num;
     unsigned page2Num = 0;
     bool newRootPageCreated = false;
     void *iNode = malloc(PAGE_SIZE);
@@ -209,7 +212,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
             if (!found) {
                 int compareRes = compareMemoryBlock(fakeKey, iNode, length, attribute.type, isLeaf);
                 if (compareRes > 0) {
-                    page1FreeSpace -= length;
+                    page1FreeSpace -= length + SLOT_SIZE;
                     i++;
                     j++;
                     continue;
@@ -217,7 +220,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
                     // insert node into PAGE
                     setSlotOffsetAndLength(page1, j, offset, nodeLength);
                     setNodeData(page1, nodeData, offset, nodeLength);
-                    page1FreeSpace -= length;
+                    page1FreeSpace -= length + SLOT_SIZE;
                     j++;
                     found = true;
                 }
@@ -226,7 +229,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
                 offset += nodeLength;
                 setSlotOffsetAndLength(page1, j, offset, length);
                 setNodeData(page1, iNode, offset, length);
-                page1FreeSpace -= length;
+                page1FreeSpace -= length + SLOT_SIZE;
                 i++;
                 j++;
             }
@@ -236,22 +239,22 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         setTotalSlot(page1, firstPageNum);
         setFreeSpace(page1, page1FreeSpace);
 
+        // generate page2 get page2Num
+        void *page2 = malloc(PAGE_SIZE);
+        initNewPage(ixFileHandle, page2, page2Num, isLeaf, attribute.type);
 
         // store & prepare for insert in parent level, fill in node & node length
         // IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
-        // IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 9> (bytes)
+        // IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 8> (bytes)
         getNodeDataAndOffsetAndLength(page1, nodePassToParent, firstPageNum - 1, offset, length);
         if (isLeaf) {
             // substitute RID into PAGE_NUM
-            memcpy((char *) nodePassToParent + length - IX_RID_SIZE, &page1Num, UNSIGNED_SIZE);
+            memcpy((char *) nodePassToParent + length - IX_RID_SIZE, &page2Num, UNSIGNED_SIZE);
             nodePassToParentLength = nodeLength - IX_RID_SIZE + UNSIGNED_SIZE;
         } else {
-            memcpy((char *) nodePassToParent + length - UNSIGNED_SIZE, &page1Num, UNSIGNED_SIZE);
+            memcpy((char *) nodePassToParent + length - UNSIGNED_SIZE, &page2Num, UNSIGNED_SIZE);
             nodePassToParentLength = nodeLength;
         }
-
-        void *page2 = malloc(PAGE_SIZE);
-        page2Num = ixFileHandle.getNumberOfPages();
 
         if (isLeaf) {
             // write nextPageNum for page1, page1 link to page2, page2 link to page1's next page
@@ -280,6 +283,15 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
             }
         }
 
+        // if still not found, add the node at the end of the PAGE2
+        if (!found) {
+            unsigned page2LastOffset;
+            unsigned page2LastLength;
+            unsigned page2TotalSlot = getTotalSlot(page2);
+            getSlotOffsetAndLength(page2, page2TotalSlot - 1, page2LastOffset, page2LastLength);
+            addNode(page2, nodeData, page2TotalSlot, page2LastOffset + page2LastLength, nodeLength);
+        }
+
         // write page1, page2 into memory
         ixFileHandle.writePage(page1Num, page1);
         ixFileHandle.appendPage(page2);
@@ -290,18 +302,20 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
         free(page2);
         free(page1);
+        tmpPage1Num = page1Num;
 
         // if the root is also full, split it.
         if (parentPage.empty()) {
+            page1 = malloc(PAGE_SIZE);
             // init new page assign to page1, change the rootPageNum
-            initNewPage(ixFileHandle, page1, page1Num, false, TypeVarChar);
+            initNewPage(ixFileHandle, page1, page1Num, false, attribute.type);
             ixFileHandle.rootPageNum = page1Num;
             newRootPageCreated = true;
         } else {
             page1 = parentPage.top();
             parentPage.pop();
             page1Num = parentPageNum.top();
-            parentPage.pop();
+            parentPageNum.pop();
         }
 
         isLeaf = false;
@@ -325,23 +339,32 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         unsigned startSlot;
         startSlot = searchNode(page1, fakeKey, attribute.type, LT_OP, isLeaf);
 
-        // page is empty, just insert
-        if (startSlot == NOT_VALID_UNSIGNED_SIGNAL) {
-            addNode(page1, nodeData, 0, 0, nodeLength);
-        } else {
-            // if we create new root page, we need to assign 1 more page number to its slot
-            // i.e. add page2Num to the start slot, i.e. the MAX VALUE slot
-            if (newRootPageCreated) {
-                unsigned offset, length;
-                void* maxNodeData = malloc(PAGE_SIZE);
-                getNodeDataAndOffsetAndLength(page1, maxNodeData, startSlot, offset, length);
-                // modify pageNum in none leaf node
-                memcpy((char *) maxNodeData + (length - UNSIGNED_SIZE), &page2Num, UNSIGNED_SIZE);
-                // write back to page1
-                setNodeData(page1, maxNodeData, offset, length);
-                free(maxNodeData);
-            }
+        // if we create new root page, we need to assign 1 more page number to its slot
+        // i.e. add page1Num to the start slot, i.e. the MIN VALUE slot
+        if (newRootPageCreated) {
+            unsigned offset, length;
+            void* minNodeData = malloc(PAGE_SIZE);
+            getNodeDataAndOffsetAndLength(page1, minNodeData, 0, offset, length);
+            // modify pageNum in none leaf node
+            memcpy((char *) minNodeData + (length - UNSIGNED_SIZE), &tmpPage1Num, UNSIGNED_SIZE);
+            // write back to page1
+            setNodeData(page1, minNodeData, offset, length);
+            free(minNodeData);
+        }
 
+        // node to insert is larger than all the node in the page, just insert
+        if (startSlot == NOT_VALID_UNSIGNED_SIGNAL) {
+            unsigned totalSlotNum = getTotalSlot(page1);
+            unsigned lastSlotOffset;
+            unsigned lastSlotLength;
+            if (totalSlotNum == 0) {
+                lastSlotOffset = 0;
+                lastSlotLength = 0;
+            } else {
+                getSlotOffsetAndLength(page1, totalSlotNum - 1, lastSlotOffset, lastSlotLength);
+            }
+            addNode(page1, nodeData, totalSlotNum, lastSlotOffset + lastSlotLength, nodeLength);
+        } else {
             unsigned startSlotOffset, _;
             getSlotOffsetAndLength(page1, startSlot, startSlotOffset, _);
 
@@ -351,8 +374,15 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
             addNode(page1, nodeData, startSlot, startSlotOffset, nodeLength);
         }
 
-        // write back to memory
-        ixFileHandle.writePage(page1Num, page1);
+        // write back to file
+        RC rc;
+        if (page1Num >= ixFileHandle.getNumberOfPages()) {
+            rc = ixFileHandle.appendPage(page1);
+        } else {
+            rc = ixFileHandle.writePage(page1Num, page1);
+        }
+        if (rc == -1)
+            throw std::logic_error("wrong write file rc");
     } else {
         throw std::logic_error("logic in insert entry is not right!");
     }
@@ -395,6 +425,9 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
                       bool lowKeyInclusive,
                       bool highKeyInclusive,
                       IX_ScanIterator &ix_ScanIterator) {
+    if (!ixFileHandle.isOpen()) {
+        return -1;
+    }
     if (lowKey == nullptr) {
         void *newLowKey = malloc(40);
         generateLowKey(newLowKey, attribute.type);
@@ -473,6 +506,7 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
  * */
 void IndexManager::printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const {
     preOrderPrint(&ixFileHandle, ixFileHandle.rootPageNum, attribute.type, 0);
+    std::cout << "\n";
 }
 
 void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, AttrType type, unsigned level) {
@@ -514,7 +548,7 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
             printKey(key, type);
             std::cout << "\"";
         }
-        std::cout << "]},\n" << indentation(level) << "\"children\": [\n";
+        std::cout << "],\n" << indentation(level) << "\"children\": [\n";
         bool first = true;
         for (auto num : pageNums) {
             if (!first) {
@@ -524,7 +558,6 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
             first = false;
         }
         std::cout << "\n";
-
         std::cout << indentation(level) << "]}";
     }
 
@@ -572,16 +605,18 @@ IndexManager::searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, At
     void *pageData = malloc(PAGE_SIZE);
     // slot nodeData
     void *nodeData = malloc(PAGE_SIZE);
-    ixFileHandle.readPage(curPageNum, pageData);
+    RC rc = ixFileHandle.readPage(curPageNum, pageData);
+    if (rc == -1)
+        throw std::logic_error("wrong rc");
 
     unsigned totalSlot;
     while (!isLeafLayer(pageData)) {
         totalSlot = getTotalSlot(pageData);
-        for (unsigned i = 0; i < totalSlot; i++) {
+        for (unsigned i = totalSlot - 1; i >= 0; i--) {
             unsigned offset, length;
             getNodeDataAndOffsetAndLength(pageData, nodeData, i, offset, length);
-            // if key <= slotData, we found next child, otherwise if current slot is last slot, must in there
-            if (i == totalSlot - 1 || compareMemoryBlock(key, nodeData, length, type, false) <= 0) {
+            // if key > slotData, we found next child, otherwise if current slot is last slot, must in there
+            if (i == 0 || compareMemoryBlock(key, nodeData, length, type, false) > 0) {
                 unsigned nextPageNum = getNextPageFromNotLeafNode(nodeData);
 
                 void *parentPage = malloc(PAGE_SIZE);
@@ -616,27 +651,30 @@ IndexManager::initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &page
     setTotalSlot(data, 0);
     setNextPageNum(data, NOT_VALID_UNSIGNED_SIGNAL);
     setLeafLayer(data, isLeafLayer);
-    // if is none leaf layer, insert initial MAX_VALUE_SIGNAL into it
+    // if is none leaf layer, insert initial MIN_VALUE_SIGNAL into it
     if (!isLeafLayer) {
         unsigned offset = 0, length = 0;
-        // generate MAX_VALUE data
+        // generate MIN_VALUE data
         void* key = malloc(20);
         void* nodeData = malloc(40);
-        generateMaxValueNode(key, nodeData, length, type);
+        generateMinValueNode(key, nodeData, length, type);
         addNode(data, nodeData, 0, offset, length);
     }
 }
 
 
-void IndexManager::generateMaxValueNode(void *key, void *nodeData, unsigned &length, AttrType type) {
+void IndexManager::generateMinValueNode(void *key, void *nodeData, unsigned &length, AttrType type) {
     if (type == TypeVarChar) {
         unsigned x = 6;
-        std::string y = MAX_VALUE_SIGNAL_STRING;
+        std::string y = MIN_STRING;
         memcpy(key, &x, UNSIGNED_SIZE);
         memcpy((char *) key + UNSIGNED_SIZE, y.c_str(), y.size());
-    } else {
-        unsigned z = MAX_VALUE_SIGNAL;
+    } else if (type == TypeInt) {
+        unsigned z = MIN_INT;
         memcpy(key, &z, UNSIGNED_SIZE);
+    } else {
+        float a = MIN_FLOAT;
+        memcpy(key, &a, UNSIGNED_SIZE);
     }
 
     keyToNoneLeafNode(key, NOT_VALID_UNSIGNED_SIGNAL, nodeData, length, type);
@@ -730,7 +768,7 @@ void IndexManager::addNode(void *pageData, void *nodeData, unsigned slotNum, uns
     setSlotOffsetAndLength(pageData, slotNum, offset, length);
     setNodeData(pageData, nodeData, offset, length);
     unsigned freeSpace = getFreeSpace(pageData);
-    setFreeSpace(pageData, freeSpace - length);
+    setFreeSpace(pageData, freeSpace - length - 2 * UNSIGNED_SIZE);
     unsigned totalSlot = getTotalSlot(pageData);
     setTotalSlot(pageData, totalSlot + 1);
 }
@@ -745,8 +783,6 @@ int IndexManager::compareMemoryBlock(const void *key, void *slotData, unsigned s
         int blockInt;
         memcpy(&keyInt, key, UNSIGNED_SIZE);
         memcpy(&blockInt, (char *) slotData + NODE_INDICATOR_SIZE, UNSIGNED_SIZE);
-        if (blockInt == MAX_VALUE_SIGNAL)
-            return -1;
         if (keyInt > blockInt)
             return 1;
         else if (blockInt > keyInt)
@@ -758,8 +794,6 @@ int IndexManager::compareMemoryBlock(const void *key, void *slotData, unsigned s
         float blockFloat;
         memcpy(&keyFloat, key, UNSIGNED_SIZE);
         memcpy(&blockFloat, (char *) slotData + NODE_INDICATOR_SIZE, UNSIGNED_SIZE);
-        if (blockFloat == MAX_VALUE_SIGNAL)
-            return -1;
         if (keyFloat > blockFloat)
             return 1;
         else if (blockFloat > keyFloat)
@@ -772,7 +806,7 @@ int IndexManager::compareMemoryBlock(const void *key, void *slotData, unsigned s
         std::string keyString((char *) key + UNSIGNED_SIZE, keyLength);
         std::string blockString((char *) slotData + NODE_INDICATOR_SIZE,
                                 slotLength - NODE_INDICATOR_SIZE - (isLeaf ? IX_RID_SIZE : UNSIGNED_SIZE));
-        if (blockString == MAX_VALUE_SIGNAL_STRING || blockString == MAX_STRING)
+        if (blockString == MAX_STRING)
             return -1;
         if (blockString == MIN_STRING)
             return 1;
@@ -786,7 +820,7 @@ int IndexManager::compareMemoryBlock(const void *key, void *slotData, unsigned s
     }
 }
 
-// IF node is not leaf node = <KEY, INDICATOR, PAGE_NUM> <4, 1, 4> (bytes)
+// IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, 4, 4> (bytes)
 unsigned IndexManager::getNextPageFromNotLeafNode(void *data) {
     unsigned nextPage;
     memcpy(&nextPage, (char *) data + UNSIGNED_SIZE + NODE_INDICATOR_SIZE, UNSIGNED_SIZE);
@@ -813,13 +847,15 @@ void IndexManager::rightShiftSlot(void *data, unsigned startSlot, unsigned shift
         setSlotOffsetAndLength(data, i, offset + shiftLength, length);
     }
 
-    // shift whole slot & dictionary
-    unsigned startDict = IX_LEAF_LAYER_FLAG_POS - SLOT_SIZE * totalSlot;
-    unsigned endDict = IX_LEAF_LAYER_FLAG_POS - SLOT_SIZE * startSlot;
+    // shift whole slot & directory
+    unsigned startDir = IX_LEAF_LAYER_FLAG_POS - SLOT_SIZE * totalSlot;
+    unsigned endDir = IX_LEAF_LAYER_FLAG_POS - SLOT_SIZE * startSlot;
 
-    memmove((char *) data + startSlotOffset, (char *) data + startSlotOffset + shiftLength,
+    // move node
+    memmove((char *) data + startSlotOffset + shiftLength, (char *) data + startSlotOffset,
             endSlotOffset + endSlotLength - startSlotOffset);
-    memmove((char *) data + startDict, (char *) data + startDict - shiftLength, endDict - startDict + SLOT_SIZE);
+    // move dir to left
+    memmove((char *) data + startDir - UNSIGNED_SIZE * 2, (char *) data + startDir, endDir - startDir);
 }
 
 unsigned int IndexManager::searchNode(void *data, const void *key, AttrType type, CompOp compOp, bool isLeaf) {
@@ -876,10 +912,10 @@ unsigned int IndexManager::searchNode(void *data, const void *key, AttrType type
 
     free(nodeData);
 
-    if (compOp == EQ_OP) {
+    if (compOp == EQ_OP || compOp == GT_OP || compOp == GE_OP || compOp == LT_OP) {
         return NOT_VALID_UNSIGNED_SIGNAL;
-    } else if (compOp == GT_OP || compOp == GE_OP || compOp == LT_OP) {
-        return totalSlot;
+//    } else if (compOp == GT_OP || compOp == GE_OP || compOp == LT_OP) {
+//        return totalSlot;
     } else {
         throw std::logic_error("CompOp is not valid!");
     }
@@ -1001,7 +1037,7 @@ bool IndexManager::checkNodeValid(void *data) {
     return memcmp(data, &deleteFlag, NODE_INDICATOR_SIZE) != 0;
 }
 
-void IndexManager::freeParentsPageData(std::stack<void *> parents) {
+void IndexManager::freeParentsPageData(std::stack<void *> &parents) {
     while (!parents.empty()) {
         free(parents.top());
         parents.pop();
@@ -1141,4 +1177,8 @@ void IXFileHandle::_readRootPageNum() {
 void IXFileHandle::_writeRootPageNum() {
     fileHandle.fs.seekp(UNSIGNED_SIZE * 3, std::ios::beg);
     fileHandle.fs.write(reinterpret_cast<char *>(&rootPageNum), UNSIGNED_SIZE);
+}
+
+bool IXFileHandle::isOpen() {
+    return fileHandle.fs.is_open();
 }

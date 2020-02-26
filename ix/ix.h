@@ -18,8 +18,6 @@
 #define SLOT_SIZE 8
 #define DELETE_FLAG 0x80
 #define NORMAL_FLAG 0x00
-#define MAX_VALUE_SIGNAL 98764155
-#define MAX_VALUE_SIGNAL_STRING "zxyadf"
 #define IX_RID_SIZE 8
 #define MIN_INT -2147483648
 #define MAX_INT 2147483647
@@ -120,7 +118,7 @@ public:
 
     static void noneLeafNodeToKey(void *data, unsigned slotNum, void* key, unsigned &pageNum, AttrType type);
 
-    static void generateMaxValueNode(void *key, void *nodeData, unsigned &length, AttrType type);
+    static void generateMinValueNode(void *key, void *nodeData, unsigned &length, AttrType type);
 
     static bool checkNodeNumValid(void *data, unsigned slotNum);
 
@@ -128,7 +126,7 @@ public:
 
     static void setNodeInvalid(void *data, unsigned slotNum);
 
-    static void freeParentsPageData(std::stack<void *> parents);
+    static void freeParentsPageData(std::stack<void *> &parents);
 
     static void generateLowKey(void* key, AttrType type);
 
@@ -204,6 +202,8 @@ public:
     RC readPage(PageNum pageNum, void *data);                           // Get a specific page
     RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
     RC appendPage(const void *data);                                    // Append a specific page
+
+    bool isOpen();
 
     void _readRootPageNum();
     void _writeRootPageNum();
