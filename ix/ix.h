@@ -145,6 +145,8 @@ public:
 
     static void printRID(RID &rid);
 
+    static unsigned int getMinValueNodeLength(AttrType type, bool isLeaf);
+
 protected:
     IndexManager() = default;                                                   // Prevent construction
     ~IndexManager() = default;                                                  // Prevent unwanted destruction
