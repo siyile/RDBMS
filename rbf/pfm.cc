@@ -42,7 +42,7 @@ RC PagedFileManager::destroyFile(const std::string &fileName) {
 }
 
 RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-    if (!exists_test(fileName)) {
+    if (!exists_test(fileName) || fileHandle.fs.is_open()) {
         return -1;
     } else {
         fileHandle.fileName = fileName;
@@ -137,7 +137,8 @@ RC FileHandle::phyReadCounterValues() {
     fs.read(reinterpret_cast<char *>(&writePageCounter), sizeof(writePageCounter));
     fs.read(reinterpret_cast<char *>(&appendPageCounter), sizeof(appendPageCounter));
     totalPageCounter = appendPageCounter;
+    return 0;
+}
 
-};
 
 

@@ -480,7 +480,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                     offset = targetDataStartPos;
 
                     // set null indicator
-                    setNullIndicatorToExist(data, j);
+                    setNullIndicatorToExist(nullIndicator, j);
 
                     // if is VarChar, set length first
                     if (attrType == TypeVarChar) {
@@ -493,6 +493,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                     attrFind++;
                     // if found enough data, terminate scan early
                     if (attrFind == attributeNames.size()) {
+                        memcpy(data, nullIndicator, nullIndicatorSize);
                         delete[](nullIndicator);
                         delete[](attrsExist);
                         free(record);
@@ -510,6 +511,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
         } // end if (attrsExist[i])
     }
 
+    memcpy(data, nullIndicator, nullIndicatorSize);
     delete[](nullIndicator);
     delete[](attrsExist);
     free(record);
@@ -614,7 +616,7 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
 }
 
 void
-RecordBasedFileManager::getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize,
+RecordBasedFileManager::getAttrExistArray(unsigned &pos, int* attrExist, const void *data, unsigned attrSize,
                                           bool isRecord) {
     unsigned nullIndicatorSize = (attrSize + 7) / 8;
     auto *block = static_cast<unsigned char *>(malloc(sizeof(char) * nullIndicatorSize));
@@ -902,7 +904,7 @@ bool RBFM_ScanIterator::checkConditionalAttr() {
             memcpy(&length, value, UNSIGNED_SIZE);
             strValue.assign((char *) value + UNSIGNED_SIZE, length);
 
-            memcpy(&length, data, UNSIGNED_SIZE);
+            memcpy(&length, (char *) data + NULL_INDICATOR_UNIT_SIZE, UNSIGNED_SIZE);
             dataValue.assign((char *) data + NULL_INDICATOR_UNIT_SIZE + UNSIGNED_SIZE, length);
             break;
     }
