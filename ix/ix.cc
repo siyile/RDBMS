@@ -224,7 +224,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
             getNodeDataAndOffsetAndLength(page3, iNode, i, offset, length);
             if (!found) {
                 int compareRes = compareMemoryBlock(fakeKey, iNode, length, attribute.type, isLeaf);
-                if (compareRes > 0) {
+                if (compareRes >= 0) {
                     page1FreeSpace -= length + SLOT_SIZE;
                     i++;
                     j++;
@@ -913,6 +913,10 @@ int IndexManager::compareMemoryBlock(const void *key, void *slotData, unsigned s
         std::string keyString((char *) key + UNSIGNED_SIZE, keyLength);
         std::string blockString((char *) slotData + NODE_INDICATOR_SIZE,
                                 slotLength - NODE_INDICATOR_SIZE - (isLeaf ? IX_RID_SIZE : UNSIGNED_SIZE));
+        if (keyString == MAX_STRING)
+            return 1;
+        if (keyString == MIN_STRING)
+            return -1;
         if (blockString == MAX_STRING)
             return -1;
         if (blockString == MIN_STRING)
