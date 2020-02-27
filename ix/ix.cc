@@ -309,10 +309,10 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         if (isLeaf) {
             // substitute RID into PAGE_NUM
             memcpy((char *) nodeData + length - IX_RID_SIZE, &page2Num, UNSIGNED_SIZE);
-            nodeLength = nodeLength - IX_RID_SIZE + UNSIGNED_SIZE;
+            nodeLength = length - IX_RID_SIZE + UNSIGNED_SIZE;
         } else {
             memcpy((char *) nodeData + length - UNSIGNED_SIZE, &page2Num, UNSIGNED_SIZE);
-            nodeLength = nodeLength;
+            nodeLength = length;
         }
 
         free(page2);
@@ -351,6 +351,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     if (freeSpace >= nodeLength + SLOT_SIZE) {
         // start slot is the leftest slot moving right
         unsigned startSlot;
+        // if startslot is UNVALID_VALUE, it is larger than all the value in the page
         startSlot = searchNode(page1, fakeKey, attribute.type, LT_OP, isLeaf, true);
 
         // if we create new root page, we need to assign 1 more page number to its slot
@@ -717,8 +718,8 @@ IndexManager::searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, At
             unsigned offset, length;
             getNodeDataAndOffsetAndLength(pageData, nodeData, i, offset, length);
             // if key > slotData, we found next child, otherwise if current slot is last slot, must in there
-            if (i == 0 || compareMemoryBlock(key, nodeData, length, type, false) > 0) {
-                unsigned nextPageNum = getNextPageFromNotLeafNode(nodeData);
+            if (i == 0 || compareMemoryBlock(key, nodeData, length, type, false) >= 0) {
+                unsigned nextPageNum = getNextPageFromNotLeafNode(nodeData, length);
 
                 void *parentPage = malloc(PAGE_SIZE);
                 memcpy(parentPage, pageData, PAGE_SIZE);
@@ -758,8 +759,8 @@ IndexManager::initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &page
     if (!isLeafLayer) {
         unsigned offset = 0, length = 0;
         // generate MIN_VALUE data
-        void* key = malloc(20);
-        void* nodeData = malloc(40);
+        void* key = malloc(PAGE_SIZE);
+        void* nodeData = malloc(PAGE_SIZE);
         generateMinValueNode(key, nodeData, length, type);
         addNode(data, nodeData, 0, offset, length);
         free(nodeData);
@@ -770,8 +771,8 @@ IndexManager::initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &page
 
 void IndexManager::generateMinValueNode(void *key, void *nodeData, unsigned &length, AttrType type) {
     if (type == TypeVarChar) {
-        unsigned x = 6;
         std::string y = MIN_STRING;
+        unsigned x = y.length();
         memcpy(key, &x, UNSIGNED_SIZE);
         memcpy((char *) key + UNSIGNED_SIZE, y.c_str(), y.size());
     } else if (type == TypeInt) {
@@ -925,10 +926,10 @@ int IndexManager::compareMemoryBlock(const void *key, void *slotData, unsigned s
     }
 }
 
-// IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, 4, 4> (bytes)
-unsigned IndexManager::getNextPageFromNotLeafNode(void *data) {
+// IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
+unsigned int IndexManager::getNextPageFromNotLeafNode(void *data, unsigned nodeLength) {
     unsigned nextPage;
-    memcpy(&nextPage, (char *) data + UNSIGNED_SIZE + NODE_INDICATOR_SIZE, UNSIGNED_SIZE);
+    memcpy(&nextPage, (char *) data + nodeLength - UNSIGNED_SIZE, UNSIGNED_SIZE);
     if (nextPage > 200000) {
         throw std::logic_error("Next page number is invalid!");
     }

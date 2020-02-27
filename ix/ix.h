@@ -106,7 +106,7 @@ public:
     // return 1 if key > block, -1 key < block, 0 key == block
     static int compareMemoryBlock(const void *key, void *slotData, unsigned slotLength, AttrType type, bool isLeaf);
 
-    static unsigned getNextPageFromNotLeafNode(void *data);
+    static unsigned int getNextPageFromNotLeafNode(void *data, unsigned nodeLength);
 
     static void rightShiftSlot(void *data, unsigned startSlot, unsigned shiftLength);
 
