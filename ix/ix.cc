@@ -582,7 +582,6 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
     void* nodeData = malloc(PAGE_SIZE);
     ixFileHandle->readPage(pageNum, pageData);
     unsigned totalSlot = getTotalSlot(pageData);
-    unsigned offset, length;
     void* key = malloc(PAGE_SIZE);
     bool leafLayer = isLeafLayer(pageData);
     void* startKey = malloc(PAGE_SIZE);
@@ -634,7 +633,9 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
             i = end;
         }
         std::cout << "]}";
+        // end leaf layer
     } else {
+        // if none leaf layer
         // "keys":["P", "G"],
         std::vector<unsigned> pageNums;
         for (unsigned i = 0; i < totalSlot; ++i) {
@@ -1077,7 +1078,7 @@ void IndexManager::keyToNoneLeafNode(const void *key, unsigned pageNum, void *da
     length = pos;
 }
 
-// IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 9> (bytes)
+// IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 8> (bytes)
 void IndexManager::leafNodeToKey(void *data, unsigned slotNum, void *key, RID &rid, AttrType type) {
     unsigned offset, length;
     getSlotOffsetAndLength(data, slotNum, offset, length);

@@ -1,6 +1,8 @@
 #include "ix.h"
 #include "ix_test_util.h"
 
+using namespace std;
+
 RC closeWithFail(const string &indexFileName1, const string &indexFileName2, IXFileHandle &ixFileHandle1,
                  IXFileHandle &ixFileHandle2, IX_ScanIterator &ix_ScanIterator1, IX_ScanIterator &ix_ScanIterator2) {
     ix_ScanIterator1.close();
