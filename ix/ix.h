@@ -9,24 +9,27 @@
 #include "../rbf/pfm.h"
 
 # define IX_EOF (-1)  // end of the index scan
-#define IX_INIT_FREE_SPACE 4083
-#define IX_FREE_SPACE_POS 4084
-#define IX_TOTAL_SLOT_POS 4088
-#define IX_LEAF_LAYER_FLAG_POS 4083
+#define IX_INIT_FREE_SPACE 4087
+#define IX_LEAF_LAYER_FLAG_POS 4087
+#define IX_FREE_SPACE_POS 4088
+#define IX_TOTAL_SLOT_POS 4090
 #define IX_NEXT_PAGE_NUM_POS 4092
+
 #define LEAF_LAYER_FLAG 0x01
 #define NODE_INDICATOR_SIZE 1
-#define SLOT_SIZE 8
+#define SLOT_SIZE 4
 #define DELETE_FLAG 0x80
 #define NORMAL_FLAG 0x00
-#define IX_RID_SIZE 8
+#define IX_RID_SIZE 6
 #define MIN_INT -2147483648
 #define MAX_INT 2147483647
 #define MIN_FLOAT 1.17549e-038
 #define MAX_FLOAT 3.40282e+038
 #define MIN_STRING "MIN_STRING"
 #define MAX_STRING "HIGH_STRING"
-#define NOT_VALID_UNSIGNED_SIGNAL 123456789
+#define NOT_VALID_UNSIGNED_SHORT_SIGNAL 54321
+#define NOT_VALID_UNSIGNED_SIGNAL 987654321
+#define UNSIGNED_SHORT_SIZE 2
 
 class IX_ScanIterator;
 
@@ -68,20 +71,20 @@ public:
 
     // return the page of the required leave node
     // if node not found, return -1
-    static unsigned int searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type,
-                                           std::stack<void *> &parents,
-                                           std::stack<unsigned int> &parentsPageNum, bool rememberParents,
-                                           bool checkDelete);
+    static unsigned short searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type,
+                                             std::stack<void *> &parents,
+                                             std::stack<unsigned int> &parentsPageNum, bool rememberParents,
+                                             bool checkDelete);
 
     static void initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &pageNum, bool isLeafLayer, AttrType type = TypeInt);
 
-    static unsigned getFreeSpace(void *data);
+    static unsigned short getFreeSpace(void *data);
 
-    static void setFreeSpace(void *data, unsigned freeSpace);
+    static void setFreeSpace(void *data, unsigned short freeSpace);
 
-    static unsigned getTotalSlot(void *data);
+    static unsigned short getTotalSlot(void *data);
 
-    static void setTotalSlot(void *data, unsigned totalSlot);
+    static void setTotalSlot(void *data, unsigned short totalSlot);
 
     static bool isLeafLayer(void *pageData);
 
@@ -91,45 +94,45 @@ public:
 
     static void setNextPageNum(void *data, unsigned nextPageNum);
 
-    static void getSlotOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length);
+    static void getSlotOffsetAndLength(void *data, unsigned short slotNum, unsigned short &offset, unsigned short &length);
 
-    static void setSlotOffsetAndLength(void *data, unsigned slotNum, unsigned offset, unsigned length);
+    static void setSlotOffsetAndLength(void *data, unsigned short slotNum, unsigned short offset, unsigned short length);
 
-    static void getNodeData(void *pageData, void *data, unsigned offset, unsigned length);
+    static void getNodeData(void *pageData, void *data, unsigned short offset, unsigned short length);
 
-    static void setNodeData(void *pageData, void *data, unsigned offset, unsigned length);
+    static void setNodeData(void *pageData, void *data, unsigned short offset, unsigned short length);
 
-    static void getNodeDataAndOffsetAndLength(void* pageData, void* nodeData, unsigned slotNum, unsigned &offset, unsigned &length);
+    static void getNodeDataAndOffsetAndLength(void* pageData, void* nodeData, unsigned short slotNum, unsigned short &offset, unsigned short &length);
 
-    static void addNode(void* pageData, void* nodeData, unsigned slotNum, unsigned offset, unsigned length);
+    static void addNode(void* pageData, void* nodeData, unsigned short slotNum, unsigned short offset, unsigned short length);
 
     // return 1 if key > block, -1 key < block, 0 key == block
     static int compareMemoryBlock(const void *key, void *slotData, unsigned slotLength, AttrType type, bool isLeaf);
 
     static unsigned int getNextPageFromNotLeafNode(void *data, unsigned nodeLength);
 
-    static void rightShiftSlot(void *data, unsigned startSlot, unsigned shiftLength);
+    static void rightShiftSlot(void *data, unsigned short startSlot, unsigned short shiftLength);
 
-    static unsigned int
+    static unsigned short
     searchNode(void *data, const void *key, AttrType type, CompOp compOp, bool isLeaf, bool checkDelete);
 
-    static void keyToLeafNode(const void *key, const RID &rid, void *data, unsigned &length, AttrType type);
+    static void keyToLeafNode(const void *key, const RID &rid, void *data, unsigned short &length, AttrType type);
 
-    static void keyToNoneLeafNode(const void *key, unsigned pageNum, void *data, unsigned &length, AttrType type);
+    static void keyToNoneLeafNode(const void *key, unsigned pageNum, void *data, unsigned short &length, AttrType type);
 
-    static void leafNodeToKey(void *data, unsigned slotNum, void* key, RID &rid, AttrType type);
+    static void leafNodeToKey(void *data, unsigned short slotNum, void* key, RID &rid, AttrType type);
 
-    static void noneLeafNodeToKey(void *data, unsigned slotNum, void* key, unsigned &pageNum, AttrType type);
+    static void noneLeafNodeToKey(void *data, unsigned short slotNum, void* key, unsigned &pageNum, AttrType type);
 
-    static void generateMinValueNode(void *key, void *nodeData, unsigned &length, AttrType type);
+    static void generateMinValueNode(void *key, void *nodeData, unsigned short &length, AttrType type);
 
-    static bool checkNodeNumValid(void *data, unsigned slotNum);
+    static bool checkNodeNumValid(void *data, unsigned short slotNum);
 
     static bool checkNodeValid(void *data);
 
-    static void setNodeInvalid(void *data, unsigned slotNum);
+    static void setNodeInvalid(void *data, unsigned short slotNum);
 
-    static void setNodeValid(void *data, unsigned slotNum);
+    static void setNodeValid(void *data, unsigned short slotNum);
 
     static void freeParentsPageData(std::stack<void *> &parents);
 
@@ -168,8 +171,8 @@ public:
     Attribute attribute;
     IXFileHandle *ixFileHandle;
 
-    unsigned slotNum;
-    unsigned pageNum;
+    unsigned short slotNum;
+    unsigned short pageNum;
     void* pageData;
 
     // Constructor
@@ -184,7 +187,7 @@ public:
     // Terminate index scan
     RC close();
 
-    RC getNextEntry(RID &rid, void *key, bool checkDeleted, unsigned &returnSlotNum, unsigned &returnPageNum,
+    RC getNextEntry(RID &rid, void *key, bool checkDeleted, unsigned short &returnSlotNum, unsigned &returnPageNum,
                     void *returnNodeData);
 };
 

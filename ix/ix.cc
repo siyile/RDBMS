@@ -61,7 +61,7 @@ RC IndexManager::closeFile(IXFileHandle &ixFileHandle) {
 /*
  * Tree logic:  a <= x < b, first value inclusive, last exclusive
  *
- * IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 9> (bytes)
+ * IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 6> (bytes)
  * IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
  * INDICATOR include DELETE_INDICATOR
  * Slot <OFFSET, LENGTH>
@@ -137,7 +137,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     std::stack<unsigned> parentPageNum;
 
     // get page stack
-    unsigned slotNum = searchLeafNodePage(ixFileHandle, key, attribute.type, parentPage, parentPageNum, true, false);
+    unsigned short slotNum = searchLeafNodePage(ixFileHandle, key, attribute.type, parentPage, parentPageNum, true, false);
 
     unsigned pageNum = parentPageNum.top();
     parentPageNum.pop();
@@ -159,7 +159,8 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         scan(ixFileHandle, attribute, key, key, true, true, ixScanIterator, pageData, pageNum);
         RID rid1;
         void* key1 = malloc(PAGE_SIZE);
-        unsigned slotNum1, pageNum1;
+        unsigned short slotNum1;
+        unsigned pageNum1;
         void* nodeData = malloc(PAGE_SIZE);
         while (ixScanIterator.getNextEntry(rid1, key1, false, slotNum1, pageNum1, nodeData) != IX_EOF) {
             // found there is same rid
@@ -190,14 +191,14 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     }
 
     void *nodeData = malloc(PAGE_SIZE);
-    unsigned nodeLength;
+    unsigned short nodeLength;
     keyToLeafNode(key, rid, nodeData, nodeLength, attribute.type);
     // create copy of key, since key is const
     void *fakeKey = malloc(PAGE_SIZE);
     generateFakeKey(fakeKey, key, attribute.type);
 
     // basic init
-    unsigned freeSpace = getFreeSpace(pageData);
+    unsigned short freeSpace = getFreeSpace(pageData);
     // page3 is a copy of page 1 to retrieve origin node
     void *page3 = malloc(PAGE_SIZE);
     void *page1 = pageData;
@@ -213,11 +214,11 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         memcpy(page3, page1, PAGE_SIZE);
         // i is the node in original order, use it in page3
         // j is the node for current order, use it in page1
-        unsigned i = 0, j = 0, L = getTotalSlot(page1);
+        unsigned short i = 0, j = 0, L = getTotalSlot(page1);
         bool found = false;
-        unsigned firstPageNum = ceil((L + 1) * 1.0 / 2);
-        unsigned offset, length;
-        unsigned page1FreeSpace = IX_INIT_FREE_SPACE;
+        unsigned short firstPageNum = ceil((L + 1) * 1.0 / 2);
+        unsigned short offset, length;
+        unsigned short page1FreeSpace = IX_INIT_FREE_SPACE;
 
         // spilt process for the first page(PAGE1)
         while (j < firstPageNum) {
@@ -270,8 +271,8 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
          */
 
         j = isLeaf? 0 : 1;
-        unsigned offsetInPage1, _;
-        unsigned page2ExtraOffset = isLeaf ? 0 : getMinValueNodeLength(attribute.type, false);
+        unsigned short offsetInPage1, _;
+        unsigned short page2ExtraOffset = isLeaf ? 0 : getMinValueNodeLength(attribute.type, false);
         getSlotOffsetAndLength(page3, i, offsetInPage1, _);
         while (i < L) {
             getNodeDataAndOffsetAndLength(page3, iNode, i, offset, length);
@@ -290,9 +291,9 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
         // if still not found, add the node at the end of the PAGE2
         if (!found) {
-            unsigned page2LastOffset;
-            unsigned page2LastLength;
-            unsigned page2TotalSlot = getTotalSlot(page2);
+            unsigned short page2LastOffset;
+            unsigned short page2LastLength;
+            unsigned short page2TotalSlot = getTotalSlot(page2);
             getSlotOffsetAndLength(page2, page2TotalSlot - 1, page2LastOffset, page2LastLength);
             addNode(page2, nodeData, page2TotalSlot, page2LastOffset + page2LastLength, nodeLength);
         }
@@ -357,7 +358,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         // if we create new root page, we need to assign 1 more page number to its slot
         // i.e. add page1Num to the start slot, i.e. the MIN VALUE slot
         if (newRootPageCreated) {
-            unsigned offset, length;
+            unsigned short offset, length;
             void* minNodeData = malloc(PAGE_SIZE);
             getNodeDataAndOffsetAndLength(page1, minNodeData, 0, offset, length);
             // modify pageNum in none leaf node
@@ -369,9 +370,9 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
         // node to insert is larger than all the node in the page, just insert
         if (startSlot == NOT_VALID_UNSIGNED_SIGNAL) {
-            unsigned totalSlotNum = getTotalSlot(page1);
-            unsigned lastSlotOffset;
-            unsigned lastSlotLength;
+            unsigned short totalSlotNum = getTotalSlot(page1);
+            unsigned short lastSlotOffset;
+            unsigned short lastSlotLength;
             if (totalSlotNum == 0) {
                 lastSlotOffset = 0;
                 lastSlotLength = 0;
@@ -380,7 +381,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
             }
             addNode(page1, nodeData, totalSlotNum, lastSlotOffset + lastSlotLength, nodeLength);
         } else {
-            unsigned startSlotOffset, _;
+            unsigned short startSlotOffset, _;
             getSlotOffsetAndLength(page1, startSlot, startSlotOffset, _);
 
             // right shift slot & left shift dictionary
@@ -424,7 +425,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
     std::stack<void *> parents;
     std::stack<unsigned> parentsPageNum;
-    unsigned slotNum = searchLeafNodePage(ixFileHandle, key, attribute.type, parents, parentsPageNum, false, false);
+    unsigned short slotNum = searchLeafNodePage(ixFileHandle, key, attribute.type, parents, parentsPageNum, false, false);
     if (slotNum == NOT_VALID_UNSIGNED_SIGNAL) {
         free(parents.top());
         return -1;
@@ -436,7 +437,8 @@ RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     scan(ixFileHandle, attribute, key, key, true, true, ixScanIterator, pageData, parentsPageNum.top());
     RID rid1;
     void* key1 = malloc(PAGE_SIZE);
-    unsigned slotNum1, pageNum1;
+    unsigned short slotNum1;
+    unsigned pageNum1;
     void* nodeData = malloc(PAGE_SIZE);
     while (ixScanIterator.getNextEntry(rid1, key1, false, slotNum1, pageNum1, nodeData) != IX_EOF) {
         // found there is same rid
@@ -581,7 +583,7 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
     void* pageData = malloc(PAGE_SIZE);
     void* nodeData = malloc(PAGE_SIZE);
     ixFileHandle->readPage(pageNum, pageData);
-    unsigned totalSlot = getTotalSlot(pageData);
+    unsigned short totalSlot = getTotalSlot(pageData);
     void* key = malloc(PAGE_SIZE);
     bool leafLayer = isLeafLayer(pageData);
     void* startKey = malloc(PAGE_SIZE);
@@ -591,7 +593,7 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
         // print "keys": ["Q:[(10,1),(11,2)]"]
         bool fistFound = false;
         RID rid;
-        for (unsigned i = 0; i < totalSlot; ) {
+        for (unsigned short i = 0; i < totalSlot; ) {
             // find same key range
             unsigned start = i, end = start + 1;
             memset(key, 0, PAGE_SIZE);
@@ -617,7 +619,7 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
             printKey(key, type);
             std::cout << ":[";
             bool firstFoundInner = false;
-            for (unsigned j = start; j < end; j++) {
+            for (unsigned short j = start; j < end; j++) {
                 if (!checkNodeNumValid(pageData, j)) {
                     continue;
                 }
@@ -638,7 +640,7 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
         // if none leaf layer
         // "keys":["P", "G"],
         std::vector<unsigned> pageNums;
-        for (unsigned i = 0; i < totalSlot; ++i) {
+        for (unsigned short i = 0; i < totalSlot; ++i) {
             if (i > 1) std::cout << ",";
             noneLeafNodeToKey(pageData, i, key, pageNum, type);
             pageNums.push_back(pageNum);
@@ -699,7 +701,7 @@ void IndexManager::printRID(RID &rid) {
 }
 
 
-unsigned int
+unsigned short
 IndexManager::searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, AttrType type,
                                  std::stack<void *> &parents,
                                  std::stack<unsigned int> &parentsPageNum, bool rememberParents,
@@ -712,11 +714,11 @@ IndexManager::searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, At
     if (rc == -1)
         throw std::logic_error("wrong rc");
 
-    unsigned totalSlot;
+    unsigned short totalSlot;
     while (!isLeafLayer(pageData)) {
         totalSlot = getTotalSlot(pageData);
         for (unsigned i = totalSlot - 1; i >= 0; i--) {
-            unsigned offset, length;
+            unsigned short offset, length;
             getNodeDataAndOffsetAndLength(pageData, nodeData, i, offset, length);
             // if key > slotData, we found next child, otherwise if current slot is last slot, must in there
             if (i == 0 || compareMemoryBlock(key, nodeData, length, type, false) >= 0) {
@@ -741,7 +743,7 @@ IndexManager::searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, At
     parents.push(pageData);
     parentsPageNum.push(curPageNum);
 
-    unsigned slotNum = searchNode(pageData, key, type, EQ_OP, true, checkDelete);
+    unsigned short slotNum = searchNode(pageData, key, type, EQ_OP, true, checkDelete);
     free(nodeData);
     if (slotNum == NOT_VALID_UNSIGNED_SIGNAL)
         return NOT_VALID_UNSIGNED_SIGNAL;
@@ -758,7 +760,7 @@ IndexManager::initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &page
     setLeafLayer(data, isLeafLayer);
     // if is none leaf layer, insert initial MIN_VALUE_SIGNAL into it
     if (!isLeafLayer) {
-        unsigned offset = 0, length = 0;
+        unsigned short offset = 0, length = 0;
         // generate MIN_VALUE data
         void* key = malloc(PAGE_SIZE);
         void* nodeData = malloc(PAGE_SIZE);
@@ -770,7 +772,7 @@ IndexManager::initNewPage(IXFileHandle &ixFileHandle, void *data, unsigned &page
 }
 
 
-void IndexManager::generateMinValueNode(void *key, void *nodeData, unsigned &length, AttrType type) {
+void IndexManager::generateMinValueNode(void *key, void *nodeData, unsigned short &length, AttrType type) {
     if (type == TypeVarChar) {
         std::string y = MIN_STRING;
         unsigned x = y.length();
@@ -787,30 +789,30 @@ void IndexManager::generateMinValueNode(void *key, void *nodeData, unsigned &len
     keyToNoneLeafNode(key, NOT_VALID_UNSIGNED_SIGNAL, nodeData, length, type);
 }
 
-unsigned IndexManager::getFreeSpace(void *data) {
+unsigned short IndexManager::getFreeSpace(void *data) {
     unsigned freeSpace;
-    memcpy(&freeSpace, (char *) data + IX_FREE_SPACE_POS, UNSIGNED_SIZE);
+    memcpy(&freeSpace, (char *) data + IX_FREE_SPACE_POS, UNSIGNED_SHORT_SIZE);
     if (freeSpace > IX_INIT_FREE_SPACE) {
         throw std::logic_error("Free space invalid");
     }
     return freeSpace;
 }
 
-void IndexManager::setFreeSpace(void *data, unsigned freeSpace) {
+void IndexManager::setFreeSpace(void *data, unsigned short freeSpace) {
     memcpy((char *) data + IX_FREE_SPACE_POS, &freeSpace, UNSIGNED_SIZE);
 }
 
-unsigned IndexManager::getTotalSlot(void *data) {
+unsigned short IndexManager::getTotalSlot(void *data) {
     unsigned totalSlot;
-    memcpy(&totalSlot, (char *) data + IX_TOTAL_SLOT_POS, UNSIGNED_SIZE);
+    memcpy(&totalSlot, (char *) data + IX_TOTAL_SLOT_POS, UNSIGNED_SHORT_SIZE);
     if (totalSlot >= PAGE_SIZE / 2) {
         throw std::logic_error("TotalSlot number invalid.");
     }
     return totalSlot;
 }
 
-void IndexManager::setTotalSlot(void *data, unsigned totalSlot) {
-    memcpy((char *) data + IX_TOTAL_SLOT_POS, &totalSlot, UNSIGNED_SIZE);
+void IndexManager::setTotalSlot(void *data, unsigned short totalSlot) {
+    memcpy((char *) data + IX_TOTAL_SLOT_POS, &totalSlot, UNSIGNED_SHORT_SIZE);
 }
 
 bool IndexManager::isLeafLayer(void *pageData) {
@@ -839,49 +841,49 @@ void IndexManager::setNextPageNum(void *data, unsigned nextPageNum) {
     memcpy((char *) data + IX_NEXT_PAGE_NUM_POS, &nextPageNum, UNSIGNED_SIZE);
 }
 
-void IndexManager::getSlotOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length) {
-    unsigned pos = IX_LEAF_LAYER_FLAG_POS - (slotNum + 1) * UNSIGNED_SIZE * 2;
-    memcpy(&offset, (char *) data + pos, UNSIGNED_SIZE);
-    pos += UNSIGNED_SIZE;
-    memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
+void IndexManager::getSlotOffsetAndLength(void *data, unsigned short slotNum, unsigned short &offset, unsigned short &length) {
+    unsigned short pos = IX_LEAF_LAYER_FLAG_POS - (slotNum + 1) * SLOT_SIZE;
+    memcpy(&offset, (char *) data + pos, UNSIGNED_SHORT_SIZE);
+    pos += UNSIGNED_SHORT_SIZE;
+    memcpy(&length, (char *) data + pos, UNSIGNED_SHORT_SIZE);
     if (offset >= PAGE_SIZE && length >= PAGE_SIZE) {
         throw std::logic_error("Slot offset or length invalid");
     }
 }
 
-void IndexManager::setSlotOffsetAndLength(void *data, unsigned slotNum, unsigned offset, unsigned length) {
-    unsigned pos = IX_LEAF_LAYER_FLAG_POS - (slotNum + 1) * UNSIGNED_SIZE * 2;
-    memcpy((char *) data + pos, &offset, UNSIGNED_SIZE);
+void IndexManager::setSlotOffsetAndLength(void *data, unsigned short slotNum, unsigned short offset, unsigned short length) {
+    unsigned pos = IX_LEAF_LAYER_FLAG_POS - (slotNum + 1) * SLOT_SIZE;
+    memcpy((char *) data + pos, &offset, UNSIGNED_SHORT_SIZE);
     pos += UNSIGNED_SIZE;
-    memcpy((char *) data + pos, &length, UNSIGNED_SIZE);
+    memcpy((char *) data + pos, &length, UNSIGNED_SHORT_SIZE);
 }
 
-void IndexManager::getNodeData(void *pageData, void *data, unsigned offset, unsigned length) {
+void IndexManager::getNodeData(void *pageData, void *data, unsigned short offset, unsigned short length) {
     memcpy(data, (char *) pageData + offset, length);
 }
 
-void IndexManager::setNodeData(void *pageData, void *data, unsigned offset, unsigned length) {
+void IndexManager::setNodeData(void *pageData, void *data, unsigned short offset, unsigned short length) {
     memcpy((char *) pageData + offset, data, length);
 }
 
-void IndexManager::getNodeDataAndOffsetAndLength(void *pageData, void *nodeData, unsigned slotNum, unsigned &offset,
-                                                 unsigned &length) {
+void IndexManager::getNodeDataAndOffsetAndLength(void *pageData, void *nodeData, unsigned short slotNum, unsigned short &offset,
+                                                 unsigned short &length) {
     getSlotOffsetAndLength(pageData, slotNum, offset, length);
     getNodeData(pageData, nodeData, offset, length);
 }
 
-void IndexManager::addNode(void *pageData, void *nodeData, unsigned slotNum, unsigned offset,
-                           unsigned length) {
+void IndexManager::addNode(void *pageData, void *nodeData, unsigned short slotNum, unsigned short offset,
+                           unsigned short length) {
     setSlotOffsetAndLength(pageData, slotNum, offset, length);
     setNodeData(pageData, nodeData, offset, length);
-    unsigned freeSpace = getFreeSpace(pageData);
-    setFreeSpace(pageData, freeSpace - length - 2 * UNSIGNED_SIZE);
-    unsigned totalSlot = getTotalSlot(pageData);
+    unsigned short freeSpace = getFreeSpace(pageData);
+    setFreeSpace(pageData, freeSpace - length - SLOT_SIZE);
+    unsigned short totalSlot = getTotalSlot(pageData);
     setTotalSlot(pageData, totalSlot + 1);
 }
 
 /*
- * IF node is leaf node = <KEY, INDICATOR, RID> <1, key_size, 8> (bytes)
+ * IF node is leaf node = <KEY, INDICATOR, RID> <1, key_size, 6> (bytes)
  * IF node is not leaf node = <KEY, INDICATOR, PAGE_NUM> <1, key_size, 4> (bytes)
  */
 int IndexManager::compareMemoryBlock(const void *key, void *slotData, unsigned slotLength, AttrType type, bool isLeaf) {
@@ -941,42 +943,42 @@ unsigned int IndexManager::getNextPageFromNotLeafNode(void *data, unsigned nodeL
     return nextPage;
 }
 
-void IndexManager::rightShiftSlot(void *data, unsigned startSlot, unsigned shiftLength) {
-    unsigned totalSlot = getTotalSlot(data);
-    unsigned endSlot = totalSlot - 1;
+void IndexManager::rightShiftSlot(void *data, unsigned short startSlot, unsigned short shiftLength) {
+    unsigned short totalSlot = getTotalSlot(data);
+    unsigned short endSlot = totalSlot - 1;
 
-    unsigned startSlotOffset, _;
-    unsigned endSlotOffset, endSlotLength;
+    unsigned short startSlotOffset, _;
+    unsigned short endSlotOffset, endSlotLength;
 
     getSlotOffsetAndLength(data, startSlot, startSlotOffset, _);
     getSlotOffsetAndLength(data, endSlot, endSlotOffset, endSlotLength);
 
     // change dictionary
-    for (unsigned i = startSlot; i < totalSlot; i++) {
-        unsigned offset, length;
+    for (unsigned short i = startSlot; i < totalSlot; i++) {
+        unsigned short offset, length;
         getSlotOffsetAndLength(data, i, offset, length);
         setSlotOffsetAndLength(data, i, offset + shiftLength, length);
     }
 
     // shift whole slot & directory
-    unsigned startDir = IX_LEAF_LAYER_FLAG_POS - SLOT_SIZE * totalSlot;
-    unsigned endDir = IX_LEAF_LAYER_FLAG_POS - SLOT_SIZE * startSlot;
+    unsigned short startDir = IX_LEAF_LAYER_FLAG_POS - SLOT_SIZE * totalSlot;
+    unsigned short endDir = IX_LEAF_LAYER_FLAG_POS - SLOT_SIZE * startSlot;
 
     // move node
     memmove((char *) data + startSlotOffset + shiftLength, (char *) data + startSlotOffset,
             endSlotOffset + endSlotLength - startSlotOffset);
     // move dir to left
-    memmove((char *) data + startDir - UNSIGNED_SIZE * 2, (char *) data + startDir, endDir - startDir);
+    memmove((char *) data + startDir - SLOT_SIZE, (char *) data + startDir, endDir - startDir);
 }
 
-unsigned int
+unsigned short
 IndexManager::searchNode(void *data, const void *key, AttrType type, CompOp compOp, bool isLeaf, bool checkDelete) {
-    unsigned totalSlot = getTotalSlot(data);
+    unsigned short totalSlot = getTotalSlot(data);
     if (totalSlot == 0)
-        return NOT_VALID_UNSIGNED_SIGNAL;
+        return NOT_VALID_UNSIGNED_SHORT_SIGNAL;
     void *nodeData = malloc(PAGE_SIZE);
-    for (unsigned i = 0; i < totalSlot; i++) {
-        unsigned offset, length;
+    for (unsigned short i = 0; i < totalSlot; i++) {
+        unsigned short offset, length;
         getNodeDataAndOffsetAndLength(data, nodeData, i, offset, length);
         // if already deleted
         if (isLeaf && checkDelete && !checkNodeValid(nodeData))
@@ -1025,18 +1027,18 @@ IndexManager::searchNode(void *data, const void *key, AttrType type, CompOp comp
     free(nodeData);
 
     if (compOp == EQ_OP || compOp == GT_OP || compOp == GE_OP || compOp == LT_OP || compOp == LE_OP) {
-        return NOT_VALID_UNSIGNED_SIGNAL;
+        return NOT_VALID_UNSIGNED_SHORT_SIGNAL;
     } else {
         throw std::logic_error("CompOp is not valid!");
     }
 }
 
 /*
- * IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 8> (bytes)
+ * IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 6> (bytes)
  * IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
  * INDICATOR include DELETE_INDICATOR
  */
-void IndexManager::keyToLeafNode(const void *key, const RID &rid, void *data, unsigned &length, AttrType type) {
+void IndexManager::keyToLeafNode(const void *key, const RID &rid, void *data, unsigned short &length, AttrType type) {
     unsigned keySize = 4;
     unsigned pos = 0;
     if (type == TypeVarChar) {
@@ -1044,8 +1046,7 @@ void IndexManager::keyToLeafNode(const void *key, const RID &rid, void *data, un
         pos += UNSIGNED_SIZE;
     }
 
-    // current indicator only for delete
-    unsigned char indicator = 0x00;
+    unsigned char indicator = NORMAL_FLAG;
     memcpy(data, &indicator, UNSIGNED_CHAR_SIZE);
     memcpy((char *) data + NODE_INDICATOR_SIZE, (char *) key + pos, keySize);
 
@@ -1054,12 +1055,12 @@ void IndexManager::keyToLeafNode(const void *key, const RID &rid, void *data, un
     memcpy((char *) data + pos, &rid.pageNum, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
     memcpy((char *) data + pos, &rid.slotNum, UNSIGNED_SIZE);
-    pos += UNSIGNED_SIZE;
+    pos += UNSIGNED_SHORT_SIZE;
 
     length = pos;
 }
 
-void IndexManager::keyToNoneLeafNode(const void *key, unsigned pageNum, void *data, unsigned &length, AttrType type) {
+void IndexManager::keyToNoneLeafNode(const void *key, unsigned pageNum, void *data, unsigned short &length, AttrType type) {
     unsigned keySize = 4;
     unsigned pos = 0;
     if (type == TypeVarChar) {
@@ -1067,8 +1068,7 @@ void IndexManager::keyToNoneLeafNode(const void *key, unsigned pageNum, void *da
         pos += UNSIGNED_SIZE;
     }
 
-    // current indicator only for delete
-    unsigned char indicator = 0x00;
+    unsigned char indicator = NORMAL_FLAG;
     memcpy(data, &indicator, UNSIGNED_CHAR_SIZE);
     memcpy((char *) data + NODE_INDICATOR_SIZE, (char *) key + pos, keySize);
 
@@ -1080,9 +1080,9 @@ void IndexManager::keyToNoneLeafNode(const void *key, unsigned pageNum, void *da
     length = pos;
 }
 
-// IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 8> (bytes)
-void IndexManager::leafNodeToKey(void *data, unsigned slotNum, void *key, RID &rid, AttrType type) {
-    unsigned offset, length;
+// IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 6> (bytes)
+void IndexManager::leafNodeToKey(void *data, unsigned short slotNum, void *key, RID &rid, AttrType type) {
+    unsigned short offset, length;
     getSlotOffsetAndLength(data, slotNum, offset, length);
     void *nodeData = malloc(PAGE_SIZE);
     getNodeData(data, nodeData, offset, length);
@@ -1090,7 +1090,7 @@ void IndexManager::leafNodeToKey(void *data, unsigned slotNum, void *key, RID &r
     unsigned keyLength = length - NODE_INDICATOR_SIZE - IX_RID_SIZE;
 
     memcpy(&rid.pageNum, (char *) nodeData + NODE_INDICATOR_SIZE + keyLength, UNSIGNED_SIZE);
-    memcpy(&rid.slotNum, (char *) nodeData + NODE_INDICATOR_SIZE + keyLength + UNSIGNED_SIZE, UNSIGNED_SIZE);
+    memcpy(&rid.slotNum, (char *) nodeData + NODE_INDICATOR_SIZE + keyLength + UNSIGNED_SIZE, UNSIGNED_SHORT_SIZE);
 
     if (type == TypeVarChar) {
         memcpy(key, &keyLength, UNSIGNED_SIZE);
@@ -1101,8 +1101,8 @@ void IndexManager::leafNodeToKey(void *data, unsigned slotNum, void *key, RID &r
 }
 
 // IF node is not leaf node = <KEY, INDICATOR, PAGE_NUM> <1, key_size, 4> (bytes)
-void IndexManager::noneLeafNodeToKey(void *data, unsigned slotNum, void *key, unsigned &pageNum, AttrType type) {
-    unsigned offset, length;
+void IndexManager::noneLeafNodeToKey(void *data, unsigned short slotNum, void *key, unsigned &pageNum, AttrType type) {
+    unsigned short offset, length;
     getSlotOffsetAndLength(data, slotNum, offset, length);
     void *nodeData = malloc(PAGE_SIZE);
     getNodeData(data, nodeData, offset, length);
@@ -1120,8 +1120,8 @@ void IndexManager::noneLeafNodeToKey(void *data, unsigned slotNum, void *key, un
 }
 
 
-bool IndexManager::checkNodeNumValid(void *data, unsigned slotNum) {
-    unsigned offset, length;
+bool IndexManager::checkNodeNumValid(void *data, unsigned short slotNum) {
+    unsigned short offset, length;
     getSlotOffsetAndLength(data, slotNum, offset, length);
 
     void *nodeData = malloc(PAGE_SIZE);
@@ -1134,16 +1134,16 @@ bool IndexManager::checkNodeNumValid(void *data, unsigned slotNum) {
     return indicator != DELETE_FLAG;
 }
 
-void IndexManager::setNodeInvalid(void *data, unsigned slotNum) {
-    unsigned offset, length;
+void IndexManager::setNodeInvalid(void *data, unsigned short slotNum) {
+    unsigned short offset, length;
     getSlotOffsetAndLength(data, slotNum, offset, length);
 
     unsigned char deleteFlag = DELETE_FLAG;
     memcpy((char *) data + offset, &deleteFlag, NODE_INDICATOR_SIZE);
 }
 
-void IndexManager::setNodeValid(void *data, unsigned slotNum) {
-    unsigned offset, length;
+void IndexManager::setNodeValid(void *data, unsigned short slotNum) {
+    unsigned short offset, length;
     getSlotOffsetAndLength(data, slotNum, offset, length);
 
     unsigned char deleteFlag = NORMAL_FLAG;
@@ -1201,7 +1201,7 @@ unsigned int IndexManager::getMinValueNodeLength(AttrType type, bool isLeaf) {
     } else {
         length += UNSIGNED_SIZE;
     }
-    length += isLeaf ? 9 : 5;
+    length += isLeaf ? NODE_INDICATOR_SIZE + SLOT_SIZE : NODE_INDICATOR_SIZE + UNSIGNED_SIZE;
     return length;
 }
 
@@ -1223,14 +1223,15 @@ IX_ScanIterator::~IX_ScanIterator() {
 }
 
 RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
-    unsigned _, __;
+    unsigned short _;
+    unsigned __;
     RC rc = getNextEntry(rid, key, true, _, __, nullptr);
     return rc;
 }
 
-RC IX_ScanIterator::getNextEntry(RID &rid, void *key, bool checkDeleted, unsigned &returnSlotNum, unsigned &returnPageNum,
+RC IX_ScanIterator::getNextEntry(RID &rid, void *key, bool checkDeleted, unsigned short &returnSlotNum, unsigned &returnPageNum,
                                  void *returnNodeData) {
-    unsigned totalSLot = im->getTotalSlot(pageData);
+    unsigned short totalSLot = im->getTotalSlot(pageData);
     bool found = false;
     while (!found) {
         while (slotNum < totalSLot) {
@@ -1238,7 +1239,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key, bool checkDeleted, unsigne
                 slotNum += 1;
             } else {
 
-                unsigned offset, length;
+                unsigned short offset, length;
                 im->getSlotOffsetAndLength(pageData, slotNum, offset, length);
                 void *nodeData = malloc(PAGE_SIZE);
                 im->getNodeData(pageData, nodeData, offset, length);
