@@ -978,7 +978,7 @@ IndexManager::searchNode(void *data, const void *key, AttrType type, CompOp comp
         if (isLeaf && checkDelete && !checkNodeValid(nodeData))
             continue;
 
-        int compareRes = compareMemoryBlock(key, nodeData, length, type, true);
+        int compareRes = compareMemoryBlock(key, nodeData, length, type, isLeaf);
 
         switch (compOp) {
             case EQ_OP:
@@ -1022,8 +1022,6 @@ IndexManager::searchNode(void *data, const void *key, AttrType type, CompOp comp
 
     if (compOp == EQ_OP || compOp == GT_OP || compOp == GE_OP || compOp == LT_OP || compOp == LE_OP) {
         return NOT_VALID_UNSIGNED_SIGNAL;
-//    } else if (compOp == GT_OP || compOp == GE_OP || compOp == LT_OP) {
-//        return totalSlot;
     } else {
         throw std::logic_error("CompOp is not valid!");
     }
