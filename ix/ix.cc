@@ -154,7 +154,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
      *
      * */
 
-    if (slotNum != NOT_VALID_UNSIGNED_SIGNAL) {
+    if (slotNum != NOT_VALID_UNSIGNED_SHORT_SIGNAL) {
         IX_ScanIterator ixScanIterator;
         scan(ixFileHandle, attribute, key, key, true, true, ixScanIterator, pageData, pageNum);
         RID rid1;
@@ -369,7 +369,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         }
 
         // node to insert is larger than all the node in the page, just insert
-        if (startSlot == NOT_VALID_UNSIGNED_SIGNAL) {
+        if (startSlot == NOT_VALID_UNSIGNED_SHORT_SIGNAL) {
             unsigned short totalSlotNum = getTotalSlot(page1);
             unsigned short lastSlotOffset;
             unsigned short lastSlotLength;
@@ -426,7 +426,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     std::stack<void *> parents;
     std::stack<unsigned> parentsPageNum;
     unsigned short slotNum = searchLeafNodePage(ixFileHandle, key, attribute.type, parents, parentsPageNum, false, false);
-    if (slotNum == NOT_VALID_UNSIGNED_SIGNAL) {
+    if (slotNum == NOT_VALID_UNSIGNED_SHORT_SIGNAL) {
         free(parents.top());
         return -1;
     }
@@ -745,10 +745,7 @@ IndexManager::searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, At
 
     unsigned short slotNum = searchNode(pageData, key, type, EQ_OP, true, checkDelete);
     free(nodeData);
-    if (slotNum == NOT_VALID_UNSIGNED_SIGNAL)
-        return NOT_VALID_UNSIGNED_SIGNAL;
-    else
-        return slotNum;
+    return slotNum;
 }
 
 void
@@ -790,7 +787,7 @@ void IndexManager::generateMinValueNode(void *key, void *nodeData, unsigned shor
 }
 
 unsigned short IndexManager::getFreeSpace(void *data) {
-    unsigned freeSpace;
+    unsigned short freeSpace;
     memcpy(&freeSpace, (char *) data + IX_FREE_SPACE_POS, UNSIGNED_SHORT_SIZE);
     if (freeSpace > IX_INIT_FREE_SPACE) {
         throw std::logic_error("Free space invalid");
@@ -799,11 +796,11 @@ unsigned short IndexManager::getFreeSpace(void *data) {
 }
 
 void IndexManager::setFreeSpace(void *data, unsigned short freeSpace) {
-    memcpy((char *) data + IX_FREE_SPACE_POS, &freeSpace, UNSIGNED_SIZE);
+    memcpy((char *) data + IX_FREE_SPACE_POS, &freeSpace, UNSIGNED_SHORT_SIZE);
 }
 
 unsigned short IndexManager::getTotalSlot(void *data) {
-    unsigned totalSlot;
+    unsigned short totalSlot;
     memcpy(&totalSlot, (char *) data + IX_TOTAL_SLOT_POS, UNSIGNED_SHORT_SIZE);
     if (totalSlot >= PAGE_SIZE / 2) {
         throw std::logic_error("TotalSlot number invalid.");
@@ -854,7 +851,7 @@ void IndexManager::getSlotOffsetAndLength(void *data, unsigned short slotNum, un
 void IndexManager::setSlotOffsetAndLength(void *data, unsigned short slotNum, unsigned short offset, unsigned short length) {
     unsigned pos = IX_LEAF_LAYER_FLAG_POS - (slotNum + 1) * SLOT_SIZE;
     memcpy((char *) data + pos, &offset, UNSIGNED_SHORT_SIZE);
-    pos += UNSIGNED_SIZE;
+    pos += UNSIGNED_SHORT_SIZE;
     memcpy((char *) data + pos, &length, UNSIGNED_SHORT_SIZE);
 }
 
