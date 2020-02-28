@@ -234,7 +234,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
                     // insert node into PAGE
                     setSlotOffsetAndLength(page1, j, offset, nodeLength);
                     setNodeData(page1, nodeData, offset, nodeLength);
-                    page1FreeSpace -= length + SLOT_SIZE;
+                    page1FreeSpace -= nodeLength + SLOT_SIZE;
                     j++;
                     found = true;
                 }
@@ -256,6 +256,9 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         // generate page2 get page2Num
         void *page2 = malloc(PAGE_SIZE);
         initNewPage(ixFileHandle, page2, page2Num, isLeaf, attribute.type);
+        if (page2Num == 413) {
+            123;
+        }
 
         if (isLeaf) {
             // write nextPageNum for page1, page1 link to page2, page2 link to page1's next page
@@ -824,7 +827,7 @@ void IndexManager::setLeafLayer(void *data, bool isLeafLayer) {
     if (isLeafLayer) {
         flag = LEAF_LAYER_FLAG;
     } else {
-        flag = 0x00;
+        flag = NORMAL_FLAG;
     }
     memcpy((char *) data + IX_LEAF_LAYER_FLAG_POS, &flag, UNSIGNED_CHAR_SIZE);
 }
@@ -1098,7 +1101,7 @@ void IndexManager::leafNodeToKey(void *data, unsigned short slotNum, void *key, 
     free(nodeData);
 }
 
-// IF node is not leaf node = <KEY, INDICATOR, PAGE_NUM> <1, key_size, 4> (bytes)
+// IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
 void IndexManager::noneLeafNodeToKey(void *data, unsigned short slotNum, void *key, unsigned &pageNum, AttrType type) {
     unsigned short offset, length;
     getSlotOffsetAndLength(data, slotNum, offset, length);
@@ -1112,7 +1115,7 @@ void IndexManager::noneLeafNodeToKey(void *data, unsigned short slotNum, void *k
         memcpy(key, &keyLength, UNSIGNED_SIZE);
     }
 
-    memcpy((char *) key + (type == TypeVarChar ? 4 : 0), (char *) nodeData + NODE_INDICATOR_SIZE, keyLength);
+    memcpy((char *) key + (type == TypeVarChar ? UNSIGNED_SIZE : 0), (char *) nodeData + NODE_INDICATOR_SIZE, keyLength);
 
     free(nodeData);
 }
@@ -1195,7 +1198,7 @@ unsigned short IndexManager::getMinValueNodeLength(AttrType type, bool isLeaf) {
     unsigned short length = 0;
     if (type == TypeVarChar) {
         std::string string = MIN_STRING;
-        length += string.length() + UNSIGNED_SIZE;
+        length += string.length();
     } else {
         length += UNSIGNED_SIZE;
     }
