@@ -1,34 +1,60 @@
 1. Basic information
-Team #:
+Team #: 18
 Github Repo Link:
-Student 1 UCI NetID:
-Student 1 Name:
-Student 2 UCI NetID (if applicable):
-Student 2 Name (if applicable):
+Student 1 UCI NetID: siyile
+Student 1 Name: Siyi Le
+Student 2 UCI NetID: jyin12
+Student 2 Name: Jie Yin
 
 
 2. Meta-data page in an index file
 - Show your meta-data page of an index design if you have any. 
-
+We don't have a meta-data page in this project.
 
 3. Index Entry Format
 - Show your index entry design (structure). 
-
+Entry in leaf node : <INDICATOR, KEY, RID> <1, key_size, 9> (bytes)
+Entry in non-leaf node : <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
+INDICATOR is used for indicating whether this entry is deleted or not.
 
 4. Page Format
 - Show your internal-page (non-leaf node) design.
 
+The whole page can be separated into six parts:
+    The first part is entries for <key,rid> pairs, whose format was showed above.In non-leaf node, there is always a default
+    entry at the beginning of the page.This entry has the minimal value of key.
+    The second part is free space left, which is in the middle of current page.
+    The third part is directories. Each directory has 8 bytes to indicate offset and length.
+    The fourth part is an indicator of whether this page is a leaf node.
+    In the fifth part, we allocate extra 8 bytes to store and update the slot number and free space left in this page.
+    At the end of page, we use NEXT_PAGE_NUM to point to the child node.
+
+    [MIN_KEY_PAIR, Entry, Entry, ...
+
+       ..., SLOT, SLOT, LEAF_LAYER_FLAG, Free_Space, SLOT_NUM, NEXT_PAGE_NUM]
+
 - Show your leaf-page (leaf node) design.
 
+The whole page can be separated into six parts:
+    The first part is entries for <key,rid> pairs.
+    The second part is free space left, which is in the middle of current page.
+    The third part is directories. Each directory has 8 bytes to indicate offset and length.
+    The fourth part is an indicator of whether this page is a leaf node.
+    In the fifth part, we allocate extra 8 bytes to store and update the slot number and free space left in this page.
+    At the end of page, we use NEXT_PAGE_NUM to point to the child node.
+
+    [Entry, Entry, ...
+
+       ..., SLOT, SLOT, LEAF_LAYER_FLAG, Free_Space, SLOT_NUM, NEXT_PAGE_NUM]
 
 5. Implementation Detail
 - Have you added your own source file (.cc or .h)?
-
+    No.
 - Have you implemented non-lazy deletion? Choose Yes or No: 
-
+    No.
 - Have you implemented duplicated key handling that can span multiple pages? Choose Yes or No: 
   If yes, please explain briefly how you have implemented this feature.
-
+    No.
 - Other implementation details:
 
 
