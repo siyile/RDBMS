@@ -107,7 +107,7 @@ public:
     static void addNode(void* pageData, void* nodeData, unsigned short slotNum, unsigned short offset, unsigned short length);
 
     // return 1 if key > block, -1 key < block, 0 key == block
-    static int compareMemoryBlock(const void *key, void *slotData, unsigned slotLength, AttrType type, bool isLeaf);
+    static int compareMemoryBlock(const void *key, void *slotData, unsigned short slotLength, AttrType type, bool isLeaf);
 
     static unsigned int getNextPageFromNotLeafNode(void *data, unsigned nodeLength);
 
@@ -148,7 +148,7 @@ public:
 
     static void printRID(RID &rid);
 
-    static unsigned int getMinValueNodeLength(AttrType type, bool isLeaf);
+    static unsigned short getMinValueNodeLength(AttrType type, bool isLeaf);
 
     static void generateFakeKey(void* fakeKey, const void* key, AttrType type);
 
@@ -172,7 +172,7 @@ public:
     IXFileHandle *ixFileHandle;
 
     unsigned short slotNum;
-    unsigned short pageNum;
+    unsigned pageNum;
     void* pageData;
 
     // Constructor

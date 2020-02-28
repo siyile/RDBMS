@@ -305,7 +305,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
         // store & prepare for insert in parent level, fill in node & node length
         // IF node is not leaf node = <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
-        // IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 8> (bytes)
+        // IF node is leaf node = <INDICATOR, KEY, RID> <1, key_size, 6> (bytes)
         getNodeDataAndOffsetAndLength(page2, nodeData,  isLeaf ? 0 : 1, offset, length);
         if (isLeaf) {
             // substitute RID into PAGE_NUM
@@ -351,8 +351,8 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
     if (freeSpace >= nodeLength + SLOT_SIZE) {
         // start slot is the leftest slot moving right
-        unsigned startSlot;
-        // if startslot is UNVALID_VALUE, it is larger than all the value in the page
+        unsigned short startSlot;
+        // if startSlot is INVALID_VALUE, it is larger than all the value in the page
         startSlot = searchNode(page1, fakeKey, attribute.type, LT_OP, isLeaf, true);
 
         // if we create new root page, we need to assign 1 more page number to its slot
@@ -595,7 +595,7 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
         RID rid;
         for (unsigned short i = 0; i < totalSlot; ) {
             // find same key range
-            unsigned start = i, end = start + 1;
+            unsigned short start = i, end = start + 1;
             memset(key, 0, PAGE_SIZE);
             leafNodeToKey(pageData, i, key, rid, type);
             memcpy(startKey, key, PAGE_SIZE);
@@ -643,7 +643,8 @@ void IndexManager::preOrderPrint(IXFileHandle *ixFileHandle, unsigned pageNum, A
         for (unsigned short i = 0; i < totalSlot; ++i) {
             if (i > 1) std::cout << ",";
             noneLeafNodeToKey(pageData, i, key, pageNum, type);
-            pageNums.push_back(pageNum);
+            if (pageNum != NOT_VALID_UNSIGNED_SIGNAL)
+                pageNums.push_back(pageNum);
             if (i != 0) {
                 std::cout << "\"";
                 printKey(key, type);
@@ -717,7 +718,7 @@ IndexManager::searchLeafNodePage(IXFileHandle &ixFileHandle, const void *key, At
     unsigned short totalSlot;
     while (!isLeafLayer(pageData)) {
         totalSlot = getTotalSlot(pageData);
-        for (unsigned i = totalSlot - 1; i >= 0; i--) {
+        for (unsigned short i = totalSlot - 1; i >= 0; i--) {
             unsigned short offset, length;
             getNodeDataAndOffsetAndLength(pageData, nodeData, i, offset, length);
             // if key > slotData, we found next child, otherwise if current slot is last slot, must in there
@@ -883,7 +884,7 @@ void IndexManager::addNode(void *pageData, void *nodeData, unsigned short slotNu
  * IF node is leaf node = <KEY, INDICATOR, RID> <1, key_size, 6> (bytes)
  * IF node is not leaf node = <KEY, INDICATOR, PAGE_NUM> <1, key_size, 4> (bytes)
  */
-int IndexManager::compareMemoryBlock(const void *key, void *slotData, unsigned slotLength, AttrType type, bool isLeaf) {
+int IndexManager::compareMemoryBlock(const void *key, void *slotData, unsigned short slotLength, AttrType type, bool isLeaf) {
     if (type == TypeInt) {
         int keyInt;
         int blockInt;
@@ -1051,7 +1052,7 @@ void IndexManager::keyToLeafNode(const void *key, const RID &rid, void *data, un
 
     memcpy((char *) data + pos, &rid.pageNum, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
-    memcpy((char *) data + pos, &rid.slotNum, UNSIGNED_SIZE);
+    memcpy((char *) data + pos, &rid.slotNum, UNSIGNED_SHORT_SIZE);
     pos += UNSIGNED_SHORT_SIZE;
 
     length = pos;
@@ -1092,7 +1093,7 @@ void IndexManager::leafNodeToKey(void *data, unsigned short slotNum, void *key, 
     if (type == TypeVarChar) {
         memcpy(key, &keyLength, UNSIGNED_SIZE);
     }
-    memcpy((char *) key + (type == TypeVarChar ? 4 : 0), (char *) nodeData + NODE_INDICATOR_SIZE, keyLength);
+    memcpy((char *) key + (type == TypeVarChar ? UNSIGNED_SIZE : 0), (char *) nodeData + NODE_INDICATOR_SIZE, keyLength);
 
     free(nodeData);
 }
@@ -1190,15 +1191,15 @@ void IndexManager::generateHighKey(void *key, AttrType type) {
     }
 }
 
-unsigned int IndexManager::getMinValueNodeLength(AttrType type, bool isLeaf) {
-    unsigned length = 0;
+unsigned short IndexManager::getMinValueNodeLength(AttrType type, bool isLeaf) {
+    unsigned short length = 0;
     if (type == TypeVarChar) {
         std::string string = MIN_STRING;
         length += string.length() + UNSIGNED_SIZE;
     } else {
         length += UNSIGNED_SIZE;
     }
-    length += isLeaf ? NODE_INDICATOR_SIZE + SLOT_SIZE : NODE_INDICATOR_SIZE + UNSIGNED_SIZE;
+    length += isLeaf ? NODE_INDICATOR_SIZE + IX_RID_SIZE : NODE_INDICATOR_SIZE + UNSIGNED_SIZE;
     return length;
 }
 
