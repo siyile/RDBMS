@@ -9,25 +9,26 @@ Student 2 Name: Jie Yin
 
 2. Meta-data page in an index file
 - Show your meta-data page of an index design if you have any. 
-We don't have a meta-data page in this project.
+We have a meta data at pageNum 0 for indicating root page.
 
 3. Index Entry Format
 - Show your index entry design (structure). 
-Entry in leaf node : <INDICATOR, KEY, RID> <1, key_size, 9> (bytes)
+Entry in leaf node : <INDICATOR, KEY, RID> <1, key_size, 6> (bytes)
 Entry in non-leaf node : <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
-INDICATOR is used for indicating whether this entry is deleted or not.
+INDICATOR in leaf node is to indicate deleted or not.
+INDICATOR in non-leaf node is reversed for future use.
 
 4. Page Format
 - Show your internal-page (non-leaf node) design.
 
 The whole page can be separated into six parts:
-    The first part is entries for <key,rid> pairs, whose format was showed above.In non-leaf node, there is always a default
-    entry at the beginning of the page.This entry has the minimal value of key.
+    The first part is non leaf node, whose format was showed above.In non-leaf node, there is always a default
+    entry at the beginning of the page.This node has the minimal value of key.
     The second part is free space left, which is in the middle of current page.
-    The third part is directories. Each directory has 8 bytes to indicate offset and length.
+    The third part is directories. Each directory has 4 bytes to indicate its offset and length.
     The fourth part is an indicator of whether this page is a leaf node.
-    In the fifth part, we allocate extra 8 bytes to store and update the slot number and free space left in this page.
-    At the end of page, we use NEXT_PAGE_NUM to point to the child node.
+    In the fifth part, we allocate extra 4 bytes to store and update the slot number and free space left in this page.
+    At the end of page, NEXT_PAGE_NUM is not used in non-leaf page.
 
     [MIN_KEY_PAIR, Entry, Entry, ...
 
@@ -38,10 +39,10 @@ The whole page can be separated into six parts:
 The whole page can be separated into six parts:
     The first part is entries for <key,rid> pairs.
     The second part is free space left, which is in the middle of current page.
-    The third part is directories. Each directory has 8 bytes to indicate offset and length.
+    The third part is directories. Each directory has 4 bytes to indicate offset and length.
     The fourth part is an indicator of whether this page is a leaf node.
-    In the fifth part, we allocate extra 8 bytes to store and update the slot number and free space left in this page.
-    At the end of page, we use NEXT_PAGE_NUM to point to the child node.
+    In the fifth part, we allocate extra 4 bytes to store and update the slot number and free space left in this page.
+    At the end of page, we use NEXT_PAGE_NUM to point to the next leaf page.
 
     [Entry, Entry, ...
 
