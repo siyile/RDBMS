@@ -15,8 +15,11 @@ We have a meta data at pageNum 0 for indicating root page.
 - Show your index entry design (structure). 
 Entry in leaf node : <INDICATOR, KEY, RID> <1, key_size, 6> (bytes)
 Entry in non-leaf node : <INDICATOR, KEY, PAGE_NUM> <1, key_size, 4> (bytes)
+
 INDICATOR in leaf node is to indicate deleted or not.
 INDICATOR in non-leaf node is reversed for future use.
+
+PAGE_NUM is the pageNum for the next child Page
 
 4. Page Format
 - Show your internal-page (non-leaf node) design.
@@ -30,7 +33,7 @@ The whole page can be separated into six parts:
     In the fifth part, we allocate extra 4 bytes to store and update the slot number and free space left in this page.
     At the end of page, NEXT_PAGE_NUM is not used in non-leaf page.
 
-    [MIN_KEY_PAIR, Entry, Entry, ...
+    [MIN_NODE, Non Leaf Node, Non Leaf Node, ...
 
        ..., SLOT, SLOT, LEAF_LAYER_FLAG, Free_Space, SLOT_NUM, NEXT_PAGE_NUM]
 
@@ -44,7 +47,7 @@ The whole page can be separated into six parts:
     In the fifth part, we allocate extra 4 bytes to store and update the slot number and free space left in this page.
     At the end of page, we use NEXT_PAGE_NUM to point to the next leaf page.
 
-    [Entry, Entry, ...
+    [Leaf Node, Leaf Node, ...
 
        ..., SLOT, SLOT, LEAF_LAYER_FLAG, Free_Space, SLOT_NUM, NEXT_PAGE_NUM]
 
