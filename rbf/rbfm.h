@@ -4,15 +4,16 @@
 #include "pfm.h"
 #include <vector>
 
-#define F_POS 4092
-#define N_POS 4088
-#define DICT_SIZE 8
-#define INIT_FREE_SPACE 4088
+#define F_POS 4094
+#define N_POS 4092
+#define DICT_SIZE 4
+#define INIT_FREE_SPACE 4092
 #define INT_SIZE 4
 #define UNSIGNED_CHAR_SIZE 1
 #define UNSIGNED_SIZE 4
+#define UNSIGNED_SHORT_SIZE 2
 #define REDIRECT_INDICATOR_SIZE 1
-#define RID_SIZE 9
+#define RID_SIZE 7
 #define SCAN_INIT_PAGE_NUM 0
 #define SCAN_INIT_SLOT_NUM 0
 #define NULL_INDICATOR_UNIT_SIZE 1
@@ -129,7 +130,7 @@ public:
     RC readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const RID &rid, void *data);
 
     RC readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                  const RID &rid, void *data, bool isOutputRecord, unsigned &recordLength);
+                  const RID &rid, void *data, bool isOutputRecord, unsigned short &recordLength);
 
     // Print the record that is passed to this utility method.
     // This method will be mainly used for debugging/testing.
@@ -157,7 +158,7 @@ public:
     RC readAttributes(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const RID &rid,
                       const std::vector<std::string> &attributeNames, void *data);
 
-    void setNullIndicatorToExist(void *data, int i);
+    static void setNullIndicatorToExist(void *data, int i);
 
     // Scan returns an iterator to allow the caller to go through the results one by one.
     RC scan(FileHandle &fileHandle,
@@ -168,57 +169,53 @@ public:
             const std::vector<std::string> &attributeNames, // a list of projected attributes
             RBFM_ScanIterator &rbfm_ScanIterator);
 
-    unsigned getFreeSpaceByPageNum(FileHandle &fileHandle, unsigned pageNum);
+    static unsigned short getFreeSpaceByPageNum(FileHandle &fileHandle, unsigned pageNum);
 
-    unsigned getTotalSlotByPageNum(FileHandle &fileHandle, unsigned pageNum);
+    static unsigned short getTotalSlot(const void *data);
 
-    unsigned getTotalSlot(const void *data);
-
-    unsigned getFreeSpace(const void *data);
+    static unsigned short getFreeSpace(const void *data);
 
     // return -1 for none space remain, otherwise the page can insert
     int scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed);
 
     // write FreeSpace & SlotNum into new page
-    unsigned initiateNewPage(FileHandle &fileHandle);
+    static unsigned initiateNewPage(FileHandle &fileHandle);
 
-    void setSlot(void *pageData, unsigned slotNum);
+    static void setSlot(void *pageData, unsigned short slotNum);
 
-    void setSpace(void *pageData, unsigned freeSpace);
+    static void setSpace(void *pageData, unsigned short freeSpace);
 
-    void getOffsetAndLength(void *data, unsigned slotNum, unsigned &offset, unsigned &length);
+    static void getOffsetAndLength(void *data, unsigned short slotNum, unsigned short &offset, unsigned short &length);
 
-    void setOffsetAndLength(void *data, unsigned slotNum, unsigned offset, unsigned length);
+    static void setOffsetAndLength(void *data, unsigned short slotNum, unsigned short offset, unsigned short length);
 
-    void convertDataToRecord(const void *data, void *record, unsigned &recordSize,
+    static void convertDataToRecord(const void *data, void *record, unsigned short &recordSize,
                              const std::vector<Attribute> &recordDescriptor);
 
-    void getAttrExistArray(unsigned &pos, int *attrExist, const void *data, unsigned attrSize, bool isRecord);
+    static void getAttrExistArray(unsigned short &pos, int *attrExist, const void *data, unsigned attrSize, bool isRecord);
 
-    void appendRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned dataSize,
+    static void appendRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned short dataSize,
                               const void *record, RID &rid);
 
-    unsigned getTargetRecordOffset(void *data, unsigned slotNum);
+    static void writeRecord(void *pageData, const void *record, unsigned short offset, unsigned short length);
 
-    void writeRecord(void *pageData, const void *record, unsigned offset, unsigned length);
+    static void convertRecordToData(void *record, void *data, const std::vector<Attribute> &recordDescriptor);
 
-    void convertRecordToData(void *record, void *data, const std::vector<Attribute> &recordDescriptor);
+    void leftShiftRecord(void *data, unsigned short startOffset, unsigned short oldLength,
+                         unsigned short newLength);
 
-    void leftShiftRecord(void *data, unsigned startOffset, unsigned oldLength,
-                         unsigned int newLength);
+    void rightShiftRecord(void *data, unsigned short startOffset, unsigned short length,
+                          unsigned short updatedLength);
 
-    void rightShiftRecord(void *data, unsigned startOffset, unsigned int length,
-                          unsigned int updatedLength);
+    static bool isRedirected(void *record);
 
-    bool isRedirected(void *record);
+    static void getRIDFromRedirectedRecord(void* record, RID &rid);
 
-    void getRIDFromRedirectedRecord(void* record, RID &rid);
+    RC readRecordFromPage(void* data, void* record, unsigned short slotNum);
 
-    RC readRecordFromPage(void* data, void* record, unsigned slotNum);
+    static void readRIDFromRecord(void* record, RID &rid);
 
-    void readRIDFromRecord(void* record, RID &rid);
-
-    void createRIDRecord(void *record, RID &rid);
+    static void createRIDRecord(void *record, RID &rid);
 
 
 
