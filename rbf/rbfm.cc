@@ -41,7 +41,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     void *recordData = malloc(PAGE_SIZE);
     unsigned short recordSize;
     convertDataToRecord(data, recordData, recordSize, recordDescriptor);
-    unsigned spaceNeed = recordSize + DICT_SIZE;
+    unsigned short spaceNeed = recordSize + DICT_SIZE;
     unsigned targetPage;
 
     // find target page to insert
@@ -191,7 +191,7 @@ void RecordBasedFileManager::convertDataToRecord(const void *data, void *record,
     getAttrExistArray(pos, attrsExist, data, size, false);
 
     // write attribute number into start position
-    memcpy((char *) record + recordPos, (char *) &size, UNSIGNED_SHORT_SIZE);
+    memcpy((char *) record + recordPos, &size, UNSIGNED_SHORT_SIZE);
     recordPos += UNSIGNED_SHORT_SIZE;
 
     //write null flag into start position
@@ -466,13 +466,13 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
 
     for (unsigned i = 0; i < size; i++) {
         if (attrsExist[i] == 1) {
-            for (int j = 0; j < attributeNames.size(); j++) {
+            for (unsigned j = 0; j < attributeNames.size(); j++) {
                 if (recordDescriptor[i].name == attributeNames[j]) {
                     attrType = recordDescriptor[i].type;
-                    unsigned targetDataEndPos;
+                    unsigned short targetDataEndPos;
                     memcpy(&targetDataEndPos, (char *) record + dirPointerPos, UNSIGNED_SHORT_SIZE);
 
-                    unsigned targetDataStartPos;
+                    unsigned short targetDataStartPos;
                     memcpy(&targetDataStartPos, (char *) record + dirPointerPos - UNSIGNED_SHORT_SIZE, UNSIGNED_SHORT_SIZE);
 
                     length = targetDataEndPos - targetDataStartPos;
@@ -530,7 +530,7 @@ void RecordBasedFileManager::setNullIndicatorToExist(void *data, int i) {
     memcpy((char *) data + offset, &byte, UNSIGNED_CHAR_SIZE);
 }
 
-int RecordBasedFileManager::scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed) {
+int RecordBasedFileManager::scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned short sizeNeed) {
     for (int i = 0; i < curPageNum; i++) {
         if (sizeNeed <= getFreeSpaceByPageNum(fileHandle, i)) {
             return i;
@@ -615,7 +615,7 @@ RecordBasedFileManager::appendRecordIntoPage(FileHandle &fileHandle, unsigned pa
 }
 
 void
-RecordBasedFileManager::getAttrExistArray(unsigned short &pos, int* attrExist, const void *data, unsigned attrSize,
+RecordBasedFileManager::getAttrExistArray(unsigned short &pos, int* attrExist, const void *data, unsigned short attrSize,
                                           bool isRecord) {
     unsigned nullIndicatorSize = (attrSize + 7) / 8;
     auto *block = static_cast<unsigned char *>(malloc(sizeof(char) * nullIndicatorSize));

@@ -176,7 +176,7 @@ public:
     static unsigned short getFreeSpace(const void *data);
 
     // return -1 for none space remain, otherwise the page can insert
-    int scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned sizeNeed);
+    static int scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned short sizeNeed);
 
     // write FreeSpace & SlotNum into new page
     static unsigned initiateNewPage(FileHandle &fileHandle);
@@ -192,7 +192,7 @@ public:
     static void convertDataToRecord(const void *data, void *record, unsigned short &recordSize,
                              const std::vector<Attribute> &recordDescriptor);
 
-    static void getAttrExistArray(unsigned short &pos, int *attrExist, const void *data, unsigned attrSize, bool isRecord);
+    static void getAttrExistArray(unsigned short &pos, int *attrExist, const void *data, unsigned short attrSize, bool isRecord);
 
     static void appendRecordIntoPage(FileHandle &fileHandle, unsigned pageIdx, unsigned short dataSize,
                               const void *record, RID &rid);
