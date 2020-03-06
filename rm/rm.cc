@@ -459,10 +459,9 @@ void RelationManager::initScanTablesOrColumns(bool isTables) {
 
     // sort column by position number
     for (auto & it : tempAttrMap) {
-        auto rmAttrs = it.second;
         auto tableName = it.first;
         // Using lambda expressions in C++11
-        sort(rmAttrs.begin(), rmAttrs.end(), [](const RMAttribute& lhs, const RMAttribute& rhs) {
+        sort(it.second.begin(), it.second.end(), [](const RMAttribute& lhs, const RMAttribute& rhs) {
             return lhs.pos < rhs.pos;
         });
 
