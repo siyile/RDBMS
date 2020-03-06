@@ -3,7 +3,7 @@
 #include "rbfm.h"
 #include <cmath>
 #include <iostream>
-#include <unordered_set>
+#include <unordered_map>
 
 RecordBasedFileManager &RecordBasedFileManager::instance() {
     static RecordBasedFileManager _rbf_manager = RecordBasedFileManager();
@@ -461,19 +461,18 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
     unsigned short destPos = nullIndicatorSize;
     unsigned short dirPointerPos = dirStartPos;
     unsigned short length, offset;
-    int attrFind = 0;
 
     AttrType attrType;
 
-    std::unordered_set<std::string> attrNameSet{};
-    for (auto & it : attributeNames) {
-        attrNameSet.insert(it);
+    std::unordered_map<std::string, unsigned> recordDescriptorNameMap;
+    for (int i = 0; i < recordDescriptor.size(); i++) {
+        recordDescriptorNameMap[recordDescriptor[i].name] = i;
     }
 
-    for (unsigned i = 0; i < size; i++) {
+    for (unsigned i = 0; i < attributeNames.size(); i++) {
         if (attrsExist[i] == 1) {
-            if (attrNameSet.find(recordDescriptor[i].name) != attrNameSet.end()) {
-                attrType = recordDescriptor[i].type;
+            if (recordDescriptorNameMap.find(attributeNames[i]) != recordDescriptorNameMap.end()) {
+                attrType = recordDescriptor[recordDescriptorNameMap[attributeNames[i]]].type;
                 unsigned short targetDataEndPos;
                 memcpy(&targetDataEndPos, (char *) record + dirPointerPos, UNSIGNED_SHORT_SIZE);
 
@@ -484,7 +483,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                 offset = targetDataStartPos;
 
                 // set null indicator
-                setNullIndicatorToExist(nullIndicator, j);
+                setNullIndicatorToExist(nullIndicator, i);
 
                 // if is VarChar, set length first
                 if (attrType == TypeVarChar) {
@@ -494,19 +493,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
                 }
                 memcpy((char *) data + destPos, (char *) record + offset, length);
                 destPos += length;
-
-                attrFind++;
-                // if found enough data, terminate scan early
-                if (attrFind == attributeNames.size()) {
-                    memcpy(data, nullIndicator, nullIndicatorSize);
-                    delete[](nullIndicator);
-                    delete[](attrsExist);
-                    free(record);
-                    return 0;
-                }
-            } else {
-
-            } // end if (recordDescriptor[i].name == attributeNames[j])
+            }
 
             // mv dir pointer fwd
             dirPointerPos += UNSIGNED_SHORT_SIZE;
@@ -523,7 +510,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
     return 0;
 }
 
-void RecordBasedFileManager::setNullIndicatorToExist(void *data, int i) {
+void RecordBasedFileManager::setNullIndicatorToExist(void *data, unsigned int i) {
     unsigned char byte;
     int offset = i / 8;
     memcpy(&byte, (char *) data + offset, UNSIGNED_CHAR_SIZE);
