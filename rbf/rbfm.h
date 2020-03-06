@@ -37,6 +37,11 @@ struct Attribute {
     AttrLength length; // attribute length
 };
 
+struct RMAttribute {
+    Attribute attribute;
+    unsigned pos;
+};
+
 // Comparison Operator (NOT needed for part 1 of the project)
 typedef enum {
     EQ_OP = 0, // no condition// =
