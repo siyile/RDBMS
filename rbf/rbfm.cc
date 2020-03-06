@@ -3,6 +3,7 @@
 #include "rbfm.h"
 #include <cmath>
 #include <iostream>
+#include <unordered_set>
 
 RecordBasedFileManager &RecordBasedFileManager::instance() {
     static RecordBasedFileManager _rbf_manager = RecordBasedFileManager();
@@ -464,45 +465,48 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
 
     AttrType attrType;
 
+    std::unordered_set<std::string> attrNameSet{};
+    for (auto & it : attributeNames) {
+        attrNameSet.insert(it);
+    }
+
     for (unsigned i = 0; i < size; i++) {
         if (attrsExist[i] == 1) {
-            for (unsigned j = 0; j < attributeNames.size(); j++) {
-                if (recordDescriptor[i].name == attributeNames[j]) {
-                    attrType = recordDescriptor[i].type;
-                    unsigned short targetDataEndPos;
-                    memcpy(&targetDataEndPos, (char *) record + dirPointerPos, UNSIGNED_SHORT_SIZE);
+            if (attrNameSet.find(recordDescriptor[i].name) != attrNameSet.end()) {
+                attrType = recordDescriptor[i].type;
+                unsigned short targetDataEndPos;
+                memcpy(&targetDataEndPos, (char *) record + dirPointerPos, UNSIGNED_SHORT_SIZE);
 
-                    unsigned short targetDataStartPos;
-                    memcpy(&targetDataStartPos, (char *) record + dirPointerPos - UNSIGNED_SHORT_SIZE, UNSIGNED_SHORT_SIZE);
+                unsigned short targetDataStartPos;
+                memcpy(&targetDataStartPos, (char *) record + dirPointerPos - UNSIGNED_SHORT_SIZE, UNSIGNED_SHORT_SIZE);
 
-                    length = targetDataEndPos - targetDataStartPos;
-                    offset = targetDataStartPos;
+                length = targetDataEndPos - targetDataStartPos;
+                offset = targetDataStartPos;
 
-                    // set null indicator
-                    setNullIndicatorToExist(nullIndicator, j);
+                // set null indicator
+                setNullIndicatorToExist(nullIndicator, j);
 
-                    // if is VarChar, set length first
-                    if (attrType == TypeVarChar) {
-                        unsigned length1 = length;
-                        memcpy((char *) data + destPos, &length1, UNSIGNED_SIZE);
-                        destPos += UNSIGNED_SIZE;
-                    }
-                    memcpy((char *) data + destPos, (char *) record + offset, length);
-                    destPos += length;
+                // if is VarChar, set length first
+                if (attrType == TypeVarChar) {
+                    unsigned length1 = length;
+                    memcpy((char *) data + destPos, &length1, UNSIGNED_SIZE);
+                    destPos += UNSIGNED_SIZE;
+                }
+                memcpy((char *) data + destPos, (char *) record + offset, length);
+                destPos += length;
 
-                    attrFind++;
-                    // if found enough data, terminate scan early
-                    if (attrFind == attributeNames.size()) {
-                        memcpy(data, nullIndicator, nullIndicatorSize);
-                        delete[](nullIndicator);
-                        delete[](attrsExist);
-                        free(record);
-                        return 0;
-                    }
-                } else {
+                attrFind++;
+                // if found enough data, terminate scan early
+                if (attrFind == attributeNames.size()) {
+                    memcpy(data, nullIndicator, nullIndicatorSize);
+                    delete[](nullIndicator);
+                    delete[](attrsExist);
+                    free(record);
+                    return 0;
+                }
+            } else {
 
-                } // end if (recordDescriptor[i].name == attributeNames[j])
-            }
+            } // end if (recordDescriptor[i].name == attributeNames[j])
 
             // mv dir pointer fwd
             dirPointerPos += UNSIGNED_SHORT_SIZE;
