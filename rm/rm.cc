@@ -1,8 +1,8 @@
 #include "rm.h"
 #include <sys/stat.h>
 #include <utility>
-#include <iostream>
 #include <map>
+#include <algorithm>
 
 inline bool exists_test(const std::string &name) {
     struct stat buffer;
