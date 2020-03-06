@@ -468,16 +468,30 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
         recordDescriptorNameMap[recordDescriptor[i].name] = i;
     }
 
+    unsigned short dirPointPos = dirStartPos;
+    std::vector<unsigned short> attrLocation;
+    for (int i = 0; i < recordDescriptor.size(); ++i) {
+        attrLocation.push_back(dirPointPos);
+        if (attrsExist[i] == 1) {
+            dirPointPos += UNSIGNED_SHORT_SIZE;
+        }
+    }
+
     for (unsigned i = 0; i < attributeNames.size(); i++) {
         if (recordDescriptorNameMap.find(attributeNames[i]) != recordDescriptorNameMap.end()) {
             int j = recordDescriptorNameMap[attributeNames[i]];
+            // not exist in record, i.e. NULL VALUE, just skip
+            if (attrsExist[j] != 1) {
+                continue;
+            }
+
             attrType = recordDescriptor[j].type;
 
             unsigned short targetDataEndPos;
-            memcpy(&targetDataEndPos, (char *) record + dirStartPos + j * UNSIGNED_SHORT_SIZE, UNSIGNED_SHORT_SIZE);
+            memcpy(&targetDataEndPos, (char *) record + attrLocation[j], UNSIGNED_SHORT_SIZE);
 
             unsigned short targetDataStartPos;
-            memcpy(&targetDataStartPos, (char *) record + dirStartPos + j * UNSIGNED_SHORT_SIZE - UNSIGNED_SHORT_SIZE, UNSIGNED_SHORT_SIZE);
+            memcpy(&targetDataStartPos, (char *) record + attrLocation[j] - UNSIGNED_SHORT_SIZE, UNSIGNED_SHORT_SIZE);
 
             length = targetDataEndPos - targetDataStartPos;
             offset = targetDataStartPos;
