@@ -29,3 +29,4 @@ make
 ./rbftest_p5
 ./rbftest_p6
 make clean
+rm ../ix/*.o ../ix/*.a

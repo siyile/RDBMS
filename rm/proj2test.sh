@@ -29,4 +29,5 @@ make
 ./rmtest_p9
 make clean
 rm *.tbl
+rm ../ix/*.o ../ix/*.a
 

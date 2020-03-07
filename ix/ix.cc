@@ -256,9 +256,6 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
         // generate page2 get page2Num
         void *page2 = malloc(PAGE_SIZE);
         initNewPage(ixFileHandle, page2, page2Num, isLeaf, attribute.type);
-        if (page2Num == 413) {
-            123;
-        }
 
         if (isLeaf) {
             // write nextPageNum for page1, page1 link to page2, page2 link to page1's next page
