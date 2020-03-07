@@ -41,7 +41,7 @@ public:
     static IndexManager &instance();
 
     // Create an index file.
-    RC createFile(const std::string &fileName);
+    static RC createFile(const std::string &fileName);
 
     // Delete an index file.
     RC destroyFile(const std::string &fileName);
