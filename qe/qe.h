@@ -36,7 +36,9 @@ public:
 
     virtual void getAttributes(std::vector<Attribute> &attrs) const = 0;
 
-    virtual ~Iterator() = default;;
+    virtual ~Iterator() = default;
+
+
 };
 
 class TableScan : public Iterator {
@@ -195,16 +197,26 @@ public:
 class BNLJoin : public Iterator {
     // Block nested-loop join operator
 public:
+    unsigned memoryLimit;
+    Condition condition;
+    Iterator *leftIt;
+    Iterator *rightIt;
+    AttrType type;
+
+    std::unordered_map<int, void *> intMap;
+    std::unordered_map<float , void *> realMap;
+    std::unordered_map<std::string, void *> stringMap;
+
     BNLJoin(Iterator *leftIn,            // Iterator of input R
             TableScan *rightIn,           // TableScan Iterator of input S
             const Condition &condition,   // Join condition
             const unsigned numPages       // # of pages that can be loaded into memory,
             //   i.e., memory block size (decided by the optimizer)
-    ) {};
+    );
 
     ~BNLJoin() override = default;;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
     void getAttributes(std::vector<Attribute> &attrs) const override {};

@@ -2,7 +2,8 @@
 #include "../ix/ix.h"
 #include <sys/stat.h>
 #include <utility>
-#include <iostream>
+#include <map>
+#include <algorithm>
 
 inline bool exists_test(const std::string &name) {
     struct stat buffer;
@@ -431,6 +432,9 @@ void RelationManager::initScanTablesOrColumns(bool isTables) {
     scan(isTables ? TABLES_NAME : COLUMNS_NAME, NULL_STRING, NO_OP, nullptr,
          isTables ? tableAttributeNames : columnAttributeNames, rmsi);
 
+    // init a temp RMAttribute vector
+    std::unordered_map<std::string, std::vector<RMAttribute>> tempAttrMap;
+
     RID rid;
     void *data = malloc(PAGE_SIZE);
     while (rmsi.getNextTuple(rid, data) != RM_EOF) {
@@ -457,13 +461,31 @@ void RelationManager::initScanTablesOrColumns(bool isTables) {
             //add new attr into corresponding attribute vector
             std::string tableName = idToTableNameMap[id];
             if (tableName != TABLES_NAME && tableName != COLUMNS_NAME) {
-                if (tableNameToAttrMap.find(tableName) == tableNameToAttrMap.end()) {
-                    std::vector<Attribute> vector;
-                    tableNameToAttrMap[tableName] = vector;
+                if (tempAttrMap.find(tableName) == tempAttrMap.end()) {
+                    std::vector<RMAttribute> vector;
+                    tempAttrMap[tableName] = vector;
                 }
-                tableNameToAttrMap[tableName].push_back(attr);
+                RMAttribute rmAttr;
+                rmAttr.pos = position;
+                rmAttr.attribute = attr;
+                tempAttrMap[tableName].push_back(rmAttr);
             }
         }
+    }
+
+    // sort column by position number
+    for (auto & it : tempAttrMap) {
+        auto tableName = it.first;
+        // Using lambda expressions in C++11
+        sort(it.second.begin(), it.second.end(), [](const RMAttribute& lhs, const RMAttribute& rhs) {
+            return lhs.pos < rhs.pos;
+        });
+
+        std::vector<Attribute> attrs;
+        for (auto & it1 : it.second) {
+            attrs.push_back(it1.attribute);
+        }
+        tableNameToAttrMap[tableName] = attrs;
     }
 
     // after scan table set current tableID + 1
