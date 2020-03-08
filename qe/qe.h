@@ -38,7 +38,13 @@ public:
 
     virtual ~Iterator() = default;
 
+    virtual void setIterator() = 0;
 
+    static void getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> const &attrs, const std::string &attrName, unsigned index, unsigned short &length, void *data);
+
+    static unsigned getAttributesEstLength(std::vector<Attribute> const &attrs);
+
+    static unsigned getTupleLength(std::vector<Attribute> const &attrs, void *data);
 };
 
 class TableScan : public Iterator {
@@ -73,7 +79,7 @@ public:
     };
 
     // Start a new iterator given the new compOp and value
-    void setIterator() {
+    void setIterator() override {
         iter->close();
         delete iter;
         iter = new RM_ScanIterator();
@@ -198,14 +204,31 @@ class BNLJoin : public Iterator {
     // Block nested-loop join operator
 public:
     unsigned memoryLimit;
+    unsigned currentMemory;
+
+    int lrc;
+    int rrc;
+
     Condition condition;
     Iterator *leftIt;
     Iterator *rightIt;
     AttrType type;
 
-    std::unordered_map<int, void *> intMap;
-    std::unordered_map<float , void *> realMap;
-    std::unordered_map<std::string, void *> stringMap;
+    std::vector<Attribute> leftAttrs;
+    std::vector<Attribute> rightAttrs;
+
+    Attribute leftAttr;
+
+    unsigned leftAttrsEstLength;
+    int leftAttrsIndex;
+    int rightAttrsIndex;
+
+    std::unordered_map<int, std::vector<void *>> intMap;
+    std::unordered_map<float , std::vector<void *>> realMap;
+    std::unordered_map<std::string, std::vector<void *>> stringMap;
+
+    std::stack<void *> outBuffer;
+    void* tuple1;
 
     BNLJoin(Iterator *leftIn,            // Iterator of input R
             TableScan *rightIn,           // TableScan Iterator of input S
@@ -219,7 +242,13 @@ public:
     RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const override;
+
+    static int getAttrIndex(std::vector<Attribute> attrs, const std::string& attrName);
+
+    void concatenateData(void *data, void *left, void *right);
+
+    void clean();
 };
 
 class INLJoin : public Iterator {

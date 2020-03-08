@@ -163,7 +163,9 @@ public:
     RC readAttributes(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor, const RID &rid,
                       const std::vector<std::string> &attributeNames, void *data);
 
-    static void setNullIndicatorToExist(void *data, unsigned int i);
+    static void setNullIndicator(void *data, int i, unsigned int value);
+
+    static unsigned int getNullIndicator(void *data, int i);
 
     // Scan returns an iterator to allow the caller to go through the results one by one.
     RC scan(FileHandle &fileHandle,
