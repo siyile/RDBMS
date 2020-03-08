@@ -16,6 +16,11 @@ typedef enum {
 //    For INT and REAL: use 4 bytes
 //    For VARCHAR: use 4 bytes for the length followed by the characters
 
+
+RecordBasedFileManager *rbfm;
+IndexManager *im;
+RelationManager *rm;
+
 struct Value {
     AttrType type;          // type of value
     void *data;             // value
@@ -29,14 +34,20 @@ struct Condition {
     Value rhsValue;             // right-hand side value if bRhsIsAttr = FALSE
 };
 
+std::unordered_map<std::string, std::string> tNANToIndexFile;
+
+
 class Iterator {
     // All the relational operators and access methods are iterators.
 public:
+
     virtual RC getNextTuple(void *data) = 0;
 
     virtual void getAttributes(std::vector<Attribute> &attrs) const = 0;
 
     virtual ~Iterator() = default;
+
+    static void getTableNameFromRelAttr(const std::string &tableName, std::vector<Attribute> const &attrs);
 
     static void getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> const &attrs, const std::string &attrName, unsigned index, unsigned short &length, void *data);
 
@@ -179,29 +190,53 @@ public:
 class Filter : public Iterator {
     // Filter operator
 public:
-    Filter(Iterator *input,               // Iterator of input R
-           const Condition &condition     // Selection condition
+    std::vector<Attribute> relAttrs;
+    std::string tableName;
+    std::string targetAttrName;
+    Attribute targetAttribute;
+
+    std::string lhsAttr;        // left-hand side attribute
+    CompOp op;                  // comparison operator
+    bool bRhsIsAttr;            // TRUE if right-hand side is an attribute and not a value; FALSE, otherwise.
+    std::string rhsAttr;        // right-hand side attribute if bRhsIsAttr = TRUE
+    Value rhsValue;             // right-hand side value if bRhsIsAttr = FALSE
+
+    void* currentTuple;
+
+    Filter(Iterator *input,               // Iterator of input Rconst
+            Condition &condition     // Selection condition
     );
 
     ~Filter() override {};
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const override;
 };
 
 class Project : public Iterator {
     // Projection operator
 public:
+    std::vector<Attribute> relAttrs;
+    std::unordered_map<std::string, Attribute> attrNameToAttrMap;
+    //std::unordered_map<unsigned , Attribute> PositionToAttrMap;
+    std::unordered_map<unsigned, unsigned> targetIndexToTupleIndexMap;
+    std::unordered_map<unsigned, unsigned> tupleIndexToOffsetMap;
+    std::vector<std::string> targetAttributesNames;
+    //std::vector<Attribute> targetAttributes;
+
+    void* currentTuple;
+
+
     Project(Iterator *input,                    // Iterator of input R
-            const std::vector<std::string> &attrNames) {};   // std::vector containing attribute names
+            const std::vector<std::string> &attrNames);   // std::vector containing attribute names
     ~Project() override = default;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const override;
 };
 
 class BNLJoin : public Iterator {
@@ -329,5 +364,7 @@ public:
     // output attrname = "MAX(rel.attr)"
     void getAttributes(std::vector<Attribute> &attrs) const override {};
 };
+
+
 
 #endif

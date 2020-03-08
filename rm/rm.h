@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 #include "../rbf/rbfm.h"
+#include "../ix/ix.h"
 
 # define RM_EOF (-1)  // end of a scan operator
 
@@ -42,7 +43,6 @@ public:
 
     // "data" follows the same format as RelationManager::insertTuple()
     RC getNextTuple(RID &rid, void *data);
-
     RC close();
 };
 
@@ -52,9 +52,12 @@ public:
     RM_IndexScanIterator() {};    // Constructor
     ~RM_IndexScanIterator() {};    // Destructor
 
+    IX_ScanIterator ixsi;
+    IXFileHandle ixFileHandle;
+
     // "key" follows the same format as in IndexManager::insertEntry()
-    RC getNextEntry(RID &rid, void *key) { return RM_EOF; };    // Get next matching entry
-    RC close() { return -1; };                        // Terminate index scan
+    RC getNextEntry(RID &rid, void *key);    // Get next matching entry
+    RC close();                        // Terminate index scan
 };
 
 
@@ -83,6 +86,9 @@ public:
 
     // tableName -> vector<Attribute>
     std::unordered_map<std::string, std::vector<Attribute>> tableNameToAttrMap;
+
+    //tableName.attributeName ->index file name
+    std::unordered_map<std::string, std::string> tNANToIndexFile;
 
     void appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len);
 
@@ -167,6 +173,7 @@ protected:
 
 private:
     RecordBasedFileManager *rbfm;
+    IndexManager *im;
     static RelationManager *_relation_manager;
 };
 

@@ -1,4 +1,5 @@
 #include "rm.h"
+#include "../ix/ix.h"
 #include <sys/stat.h>
 #include <utility>
 #include <map>
@@ -16,6 +17,7 @@ RelationManager &RelationManager::instance() {
 
 RelationManager::RelationManager() {
     rbfm = &RecordBasedFileManager::instance();
+    im = &IndexManager::instance();
 
     // initiate table attribute
     appendAttr(tableAttr, "table-id", TypeInt, 4);
@@ -230,6 +232,13 @@ RC RelationManager::insertTuple(const std::string &tableName, const void *data, 
     rbfm->openFile(fileName, fileHandle);
 
     auto attrs = tableNameToAttrMap[tableName];
+
+    for(auto attr: attrs) {
+        if (tNANToIndexFile.find(attr.name) == tNANToIndexFile.end()) {
+            createIndex(tableName, attr.name);
+        }
+    }
+
     if (rbfm->insertRecord(fileHandle, attrs, data, rid) != 0) {
         rbfm->closeFile(fileHandle);
         return -1;
@@ -257,6 +266,13 @@ RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid, bo
     rbfm->openFile(fileName, fileHandle);
 
     auto attrs = tableNameToAttrMap[tableName];
+
+    for(auto attr: attrs) {
+        if (tNANToIndexFile.find(attr.name) != tNANToIndexFile.end()) {
+            destroyIndex(tableName, attr.name);
+        }
+    }
+
     if (rbfm->deleteRecord(fileHandle, attrs, rid) != 0) {
         rbfm->closeFile(fileHandle);
         return -1;
@@ -578,12 +594,55 @@ RC RM_ScanIterator::close() {
 };
 
 // QE IX related
+
 RC RelationManager::createIndex(const std::string &tableName, const std::string &attributeName) {
-    return -1;
+
+    std::string indexFileName = tableName + '.' + attributeName + "_index";
+    std::string tNAN = tableName + '.' + attributeName;
+    if (tNANToIndexFile.find(tNAN) == tNANToIndexFile.end()) {
+        im->createFile(indexFileName);
+        tNANToIndexFile[tNAN] = indexFileName;
+    }
+
+    RM_ScanIterator rmsi;
+    std::vector<Attribute> attributes = tableNameToAttrMap[tableName];
+    std::vector<std::string> attributeNames;
+    Attribute targetAttribute;
+    for (auto attribute: attributes) {
+        attributeNames.push_back(attribute.name);
+        if (attribute.name == attributeName) {
+            targetAttribute = attribute;
+        }
+    }
+    scan(tableName, attributeName, NO_OP, nullptr, attributeNames, rmsi);
+
+    RID rid;
+    void *data = malloc(PAGE_SIZE);
+    while(rmsi.getNextTuple(rid, data) != RM_EOF){
+        void *key = malloc(PAGE_SIZE);
+        if(targetAttribute.type != TypeVarChar) {
+            void *key = malloc(PAGE_SIZE);
+            unsigned length;
+            memcpy(&length, data, UNSIGNED_SIZE);
+            memcpy(key, (char* )data + UNSIGNED_SIZE, length);
+        } else {
+            memcpy(key, data, UNSIGNED_SIZE);
+        }
+        IXFileHandle ixFileHandle;
+        im->insertEntry(ixFileHandle, targetAttribute, key, rid);
+    }
+    rmsi.close();
+    free(data);
+
+    return 0;
 }
 
+
+
 RC RelationManager::destroyIndex(const std::string &tableName, const std::string &attributeName) {
-    return -1;
+    std::string filename = tNANToIndexFile[attributeName];
+    tNANToIndexFile.erase(attributeName);
+    return im->destroyFile(filename);
 }
 
 RC RelationManager::indexScan(const std::string &tableName,
@@ -593,5 +652,23 @@ RC RelationManager::indexScan(const std::string &tableName,
                               bool lowKeyInclusive,
                               bool highKeyInclusive,
                               RM_IndexScanIterator &rm_IndexScanIterator) {
-    return -1;
+
+    IXFileHandle ixFileHandle;
+    std::vector<Attribute> attributes = tableNameToAttrMap[tableName];
+    Attribute targetAttribute;
+    for (auto attribute: attributes) {
+        if (attribute.name == attributeName) {
+            targetAttribute = attribute;
+        }
+    }
+    im->scan(ixFileHandle, targetAttribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive,
+             reinterpret_cast<IX_ScanIterator &>(rm_IndexScanIterator));
+    return 0;
+}
+
+RC  RM_IndexScanIterator::getNextEntry(RID &rid, void *key) {
+    return ixsi.getNextEntry(rid,key);
+}
+RC RM_IndexScanIterator::close() {
+    return ixsi.close();
 }
