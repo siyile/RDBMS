@@ -6,6 +6,69 @@ Filter::Filter(Iterator *input, const Condition &condition) {
 
 // ... the rest of your implementations go here
 
+unsigned Iterator::getAttributesEstLength(std::vector<Attribute> const &attrs) {
+    unsigned length = 0;
+    for (auto const & it : attrs) {
+        length += it.length;
+    }
+    return length;
+}
+
+unsigned Iterator::getTupleLength(std::vector<Attribute> const &attrs, void *data) {
+    unsigned short length = 0;
+    int *attrsExist = new int[attrs.size()];
+    RecordBasedFileManager::getAttrExistArray(length, attrsExist, data, attrs.size(), false);
+    for (int i = 0; i < attrs.size(); i++) {
+        if (attrsExist[i]) {
+            if (attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
+                length += UNSIGNED_SIZE;
+            } else {
+                unsigned stringLength;
+                memcpy(&stringLength, (char *) data + length, UNSIGNED_SIZE);
+                length += UNSIGNED_SIZE;
+                length += stringLength;
+            }
+        }
+    }
+    delete[](attrsExist);
+    return length;
+}
+
+int Iterator::getAttrIndex(std::vector<Attribute> attrs, const std::string& attrName) {
+    for (int i = 0; i < attrs.size(); i++) {
+        if (attrs[i].name == attrName) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void Iterator::concatenateTuple(void *data, void *left, void *right, std::vector<Attribute> const &leftAttrs,
+                                std::vector<Attribute> const &rightAttrs) {
+    int lSize = leftAttrs.size();
+    int rSize = rightAttrs.size();
+
+    int nullIndicatorSize = (lSize + rSize) / 8;
+
+    // copy left null indicator
+    memcpy(data, left, lSize);
+
+    // continue copy indicator
+    unsigned char byte;
+    int l = lSize;
+
+    for (int r = 0; r < rSize; r++, l++) {
+        RecordBasedFileManager::setNullIndicator(data, l, RecordBasedFileManager::getNullIndicator(right, r));
+    }
+
+    unsigned pos = nullIndicatorSize;
+    unsigned leftLength = getTupleLength(leftAttrs, left) - lSize / 8;
+    memcpy((char *) data + pos, (char *) left + lSize / 8, leftLength);
+    pos += leftLength;
+    unsigned rightLength = getTupleLength(rightAttrs, right) - rSize / 8;
+    memcpy((char *) data + pos, (char *) right + rSize / 8, rightLength);
+}
+
 /*
  * 1. read tuple from leftIt, till the memory limit
  *      - hash the tuple by key : data
@@ -153,7 +216,7 @@ RC BNLJoin::getNextTuple(void *data) {
     } else {
         void* tuple = outBuffer.top();
         outBuffer.pop();
-        concatenateData(data, tuple, tuple1);
+        concatenateTuple(data, tuple, tuple1, leftAttrs, rightAttrs);
         free(tuple);
         return 0;
     }
@@ -161,46 +224,16 @@ RC BNLJoin::getNextTuple(void *data) {
 
 void BNLJoin::getAttributes(std::vector<Attribute> &attrs) const {
     for (auto const & it : leftAttrs) {
-        attrs.push_back(it);
+        auto attr = it;
+        attr.name = "join." + it.name;
+        attrs.push_back(attr);
     }
 
     for (auto const & it : rightAttrs) {
-        attrs.push_back(it);
+        auto attr = it;
+        attr.name = "join." + it.name;
+        attrs.push_back(attr);
     }
-}
-
-int BNLJoin::getAttrIndex(std::vector<Attribute> attrs, const std::string& attrName) {
-    for (int i = 0; i < attrs.size(); i++) {
-        if (attrs[i].name == attrName) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-void BNLJoin::concatenateData(void *data, void *left, void *right) {
-    int lSize = leftAttrs.size();
-    int rSize = rightAttrs.size();
-
-    int nullIndicatorSize = (lSize + rSize) / 8;
-
-    // copy left null indicator
-    memcpy(data, left, lSize);
-
-    // continue copy indicator
-    unsigned char byte;
-    int l = lSize;
-
-    for (int r = 0; r < rSize; r++, l++) {
-        RecordBasedFileManager::setNullIndicator(data, l, RecordBasedFileManager::getNullIndicator(right, r));
-    }
-
-    unsigned pos = nullIndicatorSize;
-    unsigned leftLength = getTupleLength(leftAttrs, left) - lSize / 8;
-    memcpy((char *) data + pos, (char *) left + lSize / 8, leftLength);
-    pos += leftLength;
-    unsigned rightLength = getTupleLength(rightAttrs, right) - rSize / 8;
-    memcpy((char *) data + pos, (char *) right + rSize / 8, rightLength);
 }
 
 void BNLJoin::clean() {
@@ -216,7 +249,7 @@ void Iterator::getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> con
     int *attrsExist = new int[attrs.size()];
     RecordBasedFileManager::getAttrExistArray(length, attrsExist, data, attrs.size(), false);
     for (int i = 0; i < attrs.size(); i++) {
-        if (i == index) {
+        if (i == index || (i == -1 && attrName == attrs[i].name)) {
             if (attrsExist[i] == 0) {
                 throw std::logic_error("NULL KEY APPEAR!");
             }
@@ -242,30 +275,67 @@ void Iterator::getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> con
     }
 }
 
-unsigned Iterator::getAttributesEstLength(std::vector<Attribute> const &attrs) {
-    unsigned length = 0;
-    for (auto const & it : attrs) {
-        length += it.length;
-    }
-    return length;
+INLJoin::INLJoin(Iterator *leftIn, IndexScan *rightIn, const Condition &condition) {
+    leftIt = leftIn;
+    rightIt = rightIn;
+    this->condition = condition;
+
+    leftIn->getAttributes(leftAttrs);
+    rightIn->getAttributes(rightAttrs);
+
+    lrc = 0;
+    rrc = QE_EOF;
+
+    leftAttrsIndex = getAttrIndex(leftAttrs, condition.lhsAttr);
+    rightAttrsIndex = getAttrIndex(rightAttrs, condition.rhsAttr);
+
+    tuple = malloc(PAGE_SIZE);
 }
 
-unsigned Iterator::getTupleLength(std::vector<Attribute> const &attrs, void *data) {
-    unsigned short length = 0;
-    int *attrsExist = new int[attrs.size()];
-    RecordBasedFileManager::getAttrExistArray(length, attrsExist, data, attrs.size(), false);
-    for (int i = 0; i < attrs.size(); i++) {
-        if (attrsExist[i]) {
-            if (attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
-                length += UNSIGNED_SIZE;
-            } else {
-                unsigned stringLength;
-                memcpy(&stringLength, (char *) data + length, UNSIGNED_SIZE);
-                length += UNSIGNED_SIZE;
-                length += stringLength;
-            }
+RC INLJoin::getNextTuple(void *data) {
+    void* key = malloc(PAGE_SIZE);
+    void* tuple1 = malloc(PAGE_SIZE);
+    while (lrc != QE_EOF && rrc != QE_EOF) {
+        // if rightIt is over, leftIt get next, restart rightIt scan
+        if (rrc == QE_EOF) {
+            // leftIt get Next
+            unsigned short _;
+            lrc = leftIt->getNextTuple(tuple);
+            getLengthAndDataFromTuple(tuple, leftAttrs, "", leftAttrsIndex, _, key);
+
+            //reset rightIt
+            rightIt->setIterator(key, key, true, true);
+        }
+
+        // left data is in tuple now, get right next tuple now
+        rrc = rightIt->getNextTuple(tuple1);
+        // get the tuple, concatenate them
+        if (rrc != QE_EOF) {
+            concatenateTuple(data, tuple, tuple1, leftAttrs, rightAttrs);
+            // found, just break!
+            break;
         }
     }
-    delete[](attrsExist);
-    return length;
+
+    free(key);
+    free(tuple1);
+    if (lrc == QE_EOF && rrc == QE_EOF) {
+        free(tuple);
+        return QE_EOF;
+    }
+    return 0;
+}
+
+void INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
+    for (auto const & it : leftAttrs) {
+        auto attr = it;
+        attr.name = "join." + it.name;
+        attrs.push_back(attr);
+    }
+
+    for (auto const & it : rightAttrs) {
+        auto attr = it;
+        attr.name = "join." + it.name;
+        attrs.push_back(attr);
+    }
 }

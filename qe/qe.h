@@ -38,13 +38,17 @@ public:
 
     virtual ~Iterator() = default;
 
-    virtual void setIterator() = 0;
-
     static void getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> const &attrs, const std::string &attrName, unsigned index, unsigned short &length, void *data);
 
     static unsigned getAttributesEstLength(std::vector<Attribute> const &attrs);
 
     static unsigned getTupleLength(std::vector<Attribute> const &attrs, void *data);
+
+    static int getAttrIndex(std::vector<Attribute> attrs, const std::string& attrName);
+
+    static void concatenateTuple(void *data, void *left, void *right, std::vector<Attribute> const &leftAttrs,
+                                 std::vector<Attribute> const &rightAttrs);
+
 };
 
 class TableScan : public Iterator {
@@ -79,7 +83,7 @@ public:
     };
 
     // Start a new iterator given the new compOp and value
-    void setIterator() override {
+    void setIterator() {
         iter->close();
         delete iter;
         iter = new RM_ScanIterator();
@@ -211,7 +215,7 @@ public:
 
     Condition condition;
     Iterator *leftIt;
-    Iterator *rightIt;
+    TableScan *rightIt;
     AttrType type;
 
     std::vector<Attribute> leftAttrs;
@@ -244,27 +248,40 @@ public:
     // For attribute in std::vector<Attribute>, name it as rel.attr
     void getAttributes(std::vector<Attribute> &attrs) const override;
 
-    static int getAttrIndex(std::vector<Attribute> attrs, const std::string& attrName);
-
-    void concatenateData(void *data, void *left, void *right);
-
     void clean();
 };
 
 class INLJoin : public Iterator {
     // Index nested-loop join operator
 public:
+
+    Iterator *leftIt;
+    IndexScan *rightIt;
+
+    Condition condition;
+
+    std::vector<Attribute> leftAttrs;
+    std::vector<Attribute> rightAttrs;
+
+    int leftAttrsIndex;
+    int rightAttrsIndex;
+
+    int lrc;
+    int rrc;
+
+    void* tuple;
+
     INLJoin(Iterator *leftIn,           // Iterator of input R
             IndexScan *rightIn,          // IndexScan Iterator of input S
             const Condition &condition   // Join condition
-    ) {};
+    );
 
     ~INLJoin() override = default;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const override;
 };
 
 // Optional for everyone. 10 extra-credit points
