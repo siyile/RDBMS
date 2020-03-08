@@ -497,7 +497,7 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
             offset = targetDataStartPos;
 
             // set null indicator
-            setNullIndicatorToExist(nullIndicator, i);
+            setNullIndicator(nullIndicator, i, 0);
 
             // if is VarChar, set length first
             if (attrType == TypeVarChar) {
@@ -518,15 +518,31 @@ RC RecordBasedFileManager::readAttributes(FileHandle &fileHandle, const std::vec
     return 0;
 }
 
-void RecordBasedFileManager::setNullIndicatorToExist(void *data, unsigned int i) {
+void RecordBasedFileManager::setNullIndicator(void *data, int i, unsigned int value) {
     unsigned char byte;
     int offset = i / 8;
     memcpy(&byte, (char *) data + offset, UNSIGNED_CHAR_SIZE);
 
     // set byte
     unsigned int j = 7 - i % 8;
-    byte &= ~(0x01U << j);
+    if (value == 0) {
+        byte &= ~(0x01U << j);
+    } else {
+        byte |= 1U << j;
+    }
+
     memcpy((char *) data + offset, &byte, UNSIGNED_CHAR_SIZE);
+}
+
+unsigned int RecordBasedFileManager::getNullIndicator(void *data, int i) {
+    unsigned char byte;
+    int offset = i / 8;
+    memcpy(&byte, (char *) data + offset, UNSIGNED_CHAR_SIZE);
+
+    // get byte
+    unsigned int j = 7 - i % 8;
+    unsigned bit = (byte >> j) & 1U;
+    return bit;
 }
 
 int RecordBasedFileManager::scanFreeSpace(FileHandle &fileHandle, unsigned curPageNum, unsigned short sizeNeed) {
