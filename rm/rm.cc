@@ -17,7 +17,7 @@ RelationManager &RelationManager::instance() {
 
 RelationManager::RelationManager() {
     rbfm = &RecordBasedFileManager::instance();
-    ix = &IndexManager::instance();
+    im = &IndexManager::instance();
 
     // initiate table attribute
     appendAttr(tableAttr, "table-id", TypeInt, 4);
@@ -234,7 +234,7 @@ RC RelationManager::insertTuple(const std::string &tableName, const void *data, 
     auto attrs = tableNameToAttrMap[tableName];
 
     for(auto attr: attrs) {
-        if (attributeNameToIndexFile.find(attr.name) == attributeNameToIndexFile.end()) {
+        if (tNANToIndexFile.find(attr.name) == tNANToIndexFile.end()) {
             createIndex(tableName, attr.name);
         }
     }
@@ -268,7 +268,7 @@ RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid, bo
     auto attrs = tableNameToAttrMap[tableName];
 
     for(auto attr: attrs) {
-        if (attributeNameToIndexFile.find(attr.name) != attributeNameToIndexFile.end()) {
+        if (tNANToIndexFile.find(attr.name) != tNANToIndexFile.end()) {
             destroyIndex(tableName, attr.name);
         }
     }
@@ -597,11 +597,11 @@ RC RM_ScanIterator::close() {
 
 RC RelationManager::createIndex(const std::string &tableName, const std::string &attributeName) {
 
-    std::string indexFileName = tableName + "_" + attributeName + "_index";
-
-    if (attributeNameToIndexFile.find(attributeName) == attributeNameToIndexFile.end()) {
-        ix->createFile(indexFileName);
-        attributeNameToIndexFile[attributeName] = indexFileName;
+    std::string indexFileName = tableName + '.' + attributeName + "_index";
+    std::string tNAN = tableName + '.' + attributeName;
+    if (tNANToIndexFile.find(tNAN) == tNANToIndexFile.end()) {
+        im->createFile(indexFileName);
+        tNANToIndexFile[tNAN] = indexFileName;
     }
 
     RM_ScanIterator rmsi;
@@ -629,16 +629,20 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
             memcpy(key, data, UNSIGNED_SIZE);
         }
         IXFileHandle ixFileHandle;
-        ix->insertEntry(ixFileHandle, targetAttribute, key, rid);
+        im->insertEntry(ixFileHandle, targetAttribute, key, rid);
     }
     rmsi.close();
-    return -1;
+    free(data);
+
+    return 0;
 }
 
+
+
 RC RelationManager::destroyIndex(const std::string &tableName, const std::string &attributeName) {
-    std::string filename = attributeNameToIndexFile[attributeName];
-    attributeNameToIndexFile.erase(attributeName);
-    return ix->destroyFile(filename);
+    std::string filename = tNANToIndexFile[attributeName];
+    tNANToIndexFile.erase(attributeName);
+    return im->destroyFile(filename);
 }
 
 RC RelationManager::indexScan(const std::string &tableName,
@@ -657,9 +661,9 @@ RC RelationManager::indexScan(const std::string &tableName,
             targetAttribute = attribute;
         }
     }
-    ix->scan(ixFileHandle, targetAttribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive,
+    im->scan(ixFileHandle, targetAttribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive,
              reinterpret_cast<IX_ScanIterator &>(rm_IndexScanIterator));
-    return -1;
+    return 0;
 }
 
 RC  RM_IndexScanIterator::getNextEntry(RID &rid, void *key) {

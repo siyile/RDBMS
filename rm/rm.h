@@ -87,8 +87,8 @@ public:
     // tableName -> vector<Attribute>
     std::unordered_map<std::string, std::vector<Attribute>> tableNameToAttrMap;
 
-    //attributeName ->index file name
-    std::unordered_map<std::string, std::string> attributeNameToIndexFile;
+    //tableName.attributeName ->index file name
+    std::unordered_map<std::string, std::string> tNANToIndexFile;
 
     void appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len);
 
@@ -173,7 +173,7 @@ protected:
 
 private:
     RecordBasedFileManager *rbfm;
-    IndexManager *ix;
+    IndexManager *im;
     static RelationManager *_relation_manager;
 };
 

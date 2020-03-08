@@ -1,8 +1,11 @@
 
 #include "qe.h"
 
-Filter::Filter(Iterator *input, const Condition &condition) {
-}
+
+condition leftattr ->attrName->indexfile
+        index scan until satisfy condition
+        then get next tuple
+
 
 // ... the rest of your implementations go here
 
@@ -268,4 +271,130 @@ unsigned Iterator::getTupleLength(std::vector<Attribute> const &attrs, void *dat
     }
     delete[](attrsExist);
     return length;
+}
+
+void Iterator::getTableNameFromRelAttr(const std::string &tableName,std::vector<Attribute> const &attrs) {
+    for(char ch : attrs[0].name) {
+        if (ch == '.') {
+            break;
+        } else {
+            tableName += ch;
+        }
+    }
+}
+
+Filter::Filter(Iterator *input, Condition &condition) {
+    this->targetAttrName = condition.lhsAttr;
+    input->getAttributes(this->relAttrs);
+
+    //get tableName from relation
+    input->getTableNameFromRelAttr(this->tableName, relAttrs);
+
+    for (Attribute attr : relAttrs) {
+        if (attr.name == targetAttrName) {
+            this->targetAttribute = attr;
+            break;
+        }
+    }
+}
+
+RC Filter::getNextTuple(void *data) {
+    unsigned short size = relAttrs.size();
+    unsigned short pos = 0;
+
+    int *attrsExist = new int[size];
+
+    RecordBasedFileManager::getAttrExistArray(pos, attrsExist, currentTuple, size, true);
+    Value value;
+    value.type = targetAttribute.type;
+
+    for (unsigned i = 0; i < size; i++) {
+        //if it doesn't exist
+        if (attrsExist[i] != 1) {
+            if (relAttrs[i].name == targetAttrName) {
+                return QE_EOF;
+            } else {
+                continue;
+            }
+        } else {
+            if (relAttrs[i].name == targetAttrName) {
+                if (targetAttribute.type != TypeVarChar) {
+                    memcpy(value.data, (char *)currentTuple + pos, UNSIGNED_SIZE);
+                } else {
+                    unsigned length;
+                    memcpy(&length, (char *)currentTuple + pos, UNSIGNED_SIZE);
+                    pos += UNSIGNED_SIZE;
+                    memcpy(value.data, (char *)currentTuple + pos, length);
+                }
+                break;
+            } else {
+                if(relAttrs[i].type != TypeVarChar) {
+                    pos += UNSIGNED_SIZE;
+                } else {
+                    unsigned length;
+                    memcpy(&length, (char *)currentTuple + pos, UNSIGNED_SIZE);
+                    pos += UNSIGNED_SIZE + length;
+                }
+            }
+        }
+    }
+
+    bool isSatisfied = false;
+
+    switch (op) {
+        case EQ_OP:
+            if (value.data == rhsValue) {
+                isSatisfied = true;
+            }
+            break;
+        case GT_OP:
+            if (value.data > rhsValue) {
+                isSatisfied = true;
+            }
+            break;
+        case GE_OP:
+            if (value.data >= rhsValue) {
+                isSatisfied = true;
+            }
+            break;
+        case LT_OP:
+            if (value.data < rhsValue) {
+                isSatisfied = true;
+            }
+            break;
+        case LE_OP:
+            if (value.data <= rhsValue) {
+                isSatisfied = true;
+            }
+            break;
+        case NE_OP:
+            if (value.data != rhsValue) {
+                isSatisfied = true;
+            }
+            break;
+        case NO_OP:
+            isSatisfied = true;
+            break;
+    }
+
+    if(isSatisfied) {
+        memcpy(data, currentTuple, Iterator::getTupleLength(relAttrs, currentTuple));
+    } else {
+        return QE_EOF;
+    }
+
+    ////TODO::currentTuple points to next tuple;
+    ////if bRhsIsAttr = TRUE
+
+    free(attrsExist);
+    return 0;
+}
+
+void Filter::getAttributes(std::vector<Attribute> &attrs) const {
+    attrs = relAttrs;
+}
+
+
+Project::Project(Iterator *input, const std::vector<std::string> &attrNames) {
+
 }

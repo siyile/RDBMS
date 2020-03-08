@@ -40,16 +40,16 @@ public:
     static IndexManager &instance();
 
     // Create an index file.
-    static RC createFile(const std::string &fileName);
+     RC createFile(const std::string &fileName);
 
     // Delete an index file.
     RC destroyFile(const std::string &fileName);
 
     // Open an index and return an ixFileHandle.
-    RC openFile(const std::string &fileName, IXFileHandle &ixFileHandle);
+     RC openFile(const std::string &fileName, IXFileHandle &ixFileHandle);
 
     // Close an ixFileHandle for an index.
-    RC closeFile(IXFileHandle &ixFileHandle);
+     RC closeFile(IXFileHandle &ixFileHandle);
 
     // Insert an entry into the given index that is indicated by the given ixFileHandle.
     RC insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid);
