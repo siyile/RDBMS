@@ -197,7 +197,7 @@ public:
     std::string rhsAttr;        // right-hand side attribute if bRhsIsAttr = TRUE
     Value rhsValue;             // right-hand side value if bRhsIsAttr = FALSE
 
-    void* currentTuple = malloc(PAGE_SIZE);
+    void* currentTuple;
 
     Filter(Iterator *input,               // Iterator of input Rconst
             Condition &condition     // Selection condition
@@ -215,16 +215,24 @@ class Project : public Iterator {
     // Projection operator
 public:
     std::vector<Attribute> relAttrs;
-    
+    std::unordered_map<std::string, Attribute> attrNameToAttrMap;
+    //std::unordered_map<unsigned , Attribute> PositionToAttrMap;
+    std::unordered_map<unsigned, unsigned> targetIndexToTupleIndexMap;
+    std::unordered_map<unsigned, unsigned> tupleIndexToOffsetMap;
+    std::vector<std::string> targetAttributesNames;
+    //std::vector<Attribute> targetAttributes;
+
+    void* currentTuple;
+
 
     Project(Iterator *input,                    // Iterator of input R
             const std::vector<std::string> &attrNames);   // std::vector containing attribute names
     ~Project() override = default;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const override;
 };
 
 class BNLJoin : public Iterator {
