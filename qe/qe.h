@@ -202,9 +202,12 @@ public:
 
     void* currentTuple;
 
+    Iterator *input;
+
     Filter(Iterator *input,               // Iterator of input Rconst
             Condition &condition     // Selection condition
     );
+    bool isTupleSatisfied();
 
     ~Filter() override {};
 
@@ -226,7 +229,7 @@ public:
     //std::vector<Attribute> targetAttributes;
 
     void* currentTuple;
-
+    Iterator *input;
 
     Project(Iterator *input,                    // Iterator of input R
             const std::vector<std::string> &attrNames);   // std::vector containing attribute names

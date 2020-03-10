@@ -358,6 +358,7 @@ void INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
 Filter::Filter(Iterator *input, Condition &condition) {
     this->targetAttrName = condition.lhsAttr;
     input->getAttributes(this->relAttrs);
+    this->input = input;
 
     //get tableName from relation
     //input->getTableNameFromRelAttr(this->tableName, relAttrs);
@@ -371,6 +372,20 @@ Filter::Filter(Iterator *input, Condition &condition) {
 }
 
 RC Filter::getNextTuple(void *data) {
+    if (input->getNextTuple(currentTuple) == QE_EOF) {
+        return QE_EOF;
+    }
+    while (!isTupleSatisfied()) {
+        void *newTuple = malloc(PAGE_SIZE);
+        getNextTuple(newTuple);
+    }
+    memcpy(data, currentTuple, Iterator::getTupleLength(relAttrs, currentTuple));
+
+    return 0;
+}
+
+bool Filter::isTupleSatisfied() {
+
     unsigned short size = relAttrs.size();
     unsigned short pos = 0;
 
@@ -387,7 +402,7 @@ RC Filter::getNextTuple(void *data) {
         //if it doesn't exist
         if (attrsExist[i] != 1) {
             if (relAttrs[i].name == targetAttrName) {
-                return QE_EOF;
+                return false;
             } else {
                 continue;
             }
@@ -471,27 +486,19 @@ RC Filter::getNextTuple(void *data) {
         }
     }
 
-    if(isSatisfied) {
-        memcpy(data, currentTuple, Iterator::getTupleLength(relAttrs, currentTuple));
-    } else {
-        return QE_EOF;
-    }
-
-    ////TODO::currentTuple points to next tuple;
-
     free(attrsExist);
-    return 0;
+    return isSatisfied;
 }
 
 void Filter::getAttributes(std::vector<Attribute> &attrs) const {
     attrs = relAttrs;
 }
 
-////TODO::vector equal
 
 Project::Project(Iterator *input, const std::vector<std::string> &attrNames) {
     input->getAttributes(this->relAttrs);
 
+    this->input = input;
     for (unsigned i = 0; i < relAttrs.size(); i++) {
        // PositionToAttrMap[i] = relAttrs[i];
         attrNameToAttrMap[relAttrs[i].name] = relAttrs[i];
@@ -501,11 +508,8 @@ Project::Project(Iterator *input, const std::vector<std::string> &attrNames) {
             }
         }
     }
-
-    this->targetAttributesNames = attrNames;
-//    std::vector<Attribute> attrs;
-//    getAttributes(attrs);
-//    this->targetAttributes = attrs;
+    //this->targetAttributesNames = attrNames;
+    this->targetAttributesNames.insert(targetAttributesNames.begin(), attrNames.begin(), attrNames.end());
 }
 
 RC Project::getNextTuple(void *data) {
@@ -559,15 +563,17 @@ RC Project::getNextTuple(void *data) {
             }
             RecordBasedFileManager::setNullIndicator(nullIndicator, i, 0);
         }
-
         memcpy(data,nullIndicator, nullIndicatorSize);
-
         return 0;
-
 }
 
 void Project::getAttributes(std::vector<Attribute> &attrs) const {
+//    for (unsigned i = 0; i < targetAttributesNames.size(); i++) {
+//        std::string attrName = targetAttributesNames[i];
+//        attrs.push_back(attrNameToAttrMap[attrName]);
+//    }
     for (auto attrName: targetAttributesNames) {
         attrs.push_back(attrNameToAttrMap[attrName]);
     }
 }
+
