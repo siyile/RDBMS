@@ -345,22 +345,22 @@ void INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
     }
 }
 
-void Iterator::getTableNameFromRelAttr(const std::string &tableName,std::vector<Attribute> const &attrs) {
-    for(char ch : attrs[0].name) {
-        if (ch == '.') {
-            break;
-        } else {
-            tableName += ch;
-        }
-    }
-}
+//void Iterator::getTableNameFromRelAttr(const std::string &tableName,std::vector<Attribute> const &attrs) {
+//    for(char ch : attrs[0].name) {
+//        if (ch == '.') {
+//            break;
+//        } else {
+//            tableName += ch;
+//        }
+//    }
+//}
 
 Filter::Filter(Iterator *input, Condition &condition) {
     this->targetAttrName = condition.lhsAttr;
     input->getAttributes(this->relAttrs);
 
     //get tableName from relation
-    input->getTableNameFromRelAttr(this->tableName, relAttrs);
+    //input->getTableNameFromRelAttr(this->tableName, relAttrs);
 
     for (Attribute attr : relAttrs) {
         if (attr.name == targetAttrName) {
@@ -380,6 +380,9 @@ RC Filter::getNextTuple(void *data) {
     Value value;
     value.type = targetAttribute.type;
 
+    std::string varCharValue;
+    unsigned intOrRealValue;
+
     for (unsigned i = 0; i < size; i++) {
         //if it doesn't exist
         if (attrsExist[i] != 1) {
@@ -391,12 +394,12 @@ RC Filter::getNextTuple(void *data) {
         } else {
             if (relAttrs[i].name == targetAttrName) {
                 if (targetAttribute.type != TypeVarChar) {
-                    memcpy(value.data, (char *)currentTuple + pos, UNSIGNED_SIZE);
+                    memcpy(&intOrRealValue, (char *)currentTuple + pos, UNSIGNED_SIZE);
                 } else {
                     unsigned length;
                     memcpy(&length, (char *)currentTuple + pos, UNSIGNED_SIZE);
                     pos += UNSIGNED_SIZE;
-                    memcpy(value.data, (char *)currentTuple + pos, length);
+                    memcpy(&varCharValue, (char *)currentTuple + pos, length);
                 }
                 break;
             } else {
@@ -413,40 +416,59 @@ RC Filter::getNextTuple(void *data) {
 
     bool isSatisfied = false;
 
-    switch (op) {
-        case EQ_OP:
-            if (value.data == rhsValue) {
+    if (value.type == rhsValue.type) {
+        std::string rhsVarCharValue;
+        unsigned rhsIntOrRealValue;
+        unsigned rhsVarCharValueLength;
+
+        if(rhsValue.type == TypeVarChar) {
+            memcpy(&rhsVarCharValueLength, rhsValue.data, UNSIGNED_SIZE);
+            memcpy(&rhsVarCharValue, (char*) rhsValue.data + UNSIGNED_SIZE, rhsVarCharValueLength);
+        } else {
+            memcpy(&rhsIntOrRealValue, rhsValue.data,UNSIGNED_SIZE);
+        }
+
+        switch (op) {
+            case EQ_OP:
+                if (value.type == TypeVarChar && varCharValue == rhsVarCharValue ||
+                (value.type == TypeReal || value.type == TypeInt) && intOrRealValue == rhsIntOrRealValue) {
+                    isSatisfied = true;
+                }
+                break;
+            case GT_OP:
+                if (value.type == TypeVarChar && varCharValue > rhsVarCharValue ||
+                (value.type == TypeReal || value.type == TypeInt) && intOrRealValue > rhsIntOrRealValue) {
+                    isSatisfied = true;
+                }
+                break;
+            case GE_OP:
+                if (value.type == TypeVarChar && varCharValue >= rhsVarCharValue ||
+                    (value.type == TypeReal || value.type == TypeInt) && intOrRealValue >= rhsIntOrRealValue) {
+                    isSatisfied = true;
+                }
+                break;
+            case LT_OP:
+                if (value.type == TypeVarChar && varCharValue < rhsVarCharValue ||
+                    (value.type == TypeReal || value.type == TypeInt) && intOrRealValue < rhsIntOrRealValue) {
+                    isSatisfied = true;
+                }
+                break;
+            case LE_OP:
+                if (value.type == TypeVarChar && varCharValue <= rhsVarCharValue ||
+                    (value.type == TypeReal || value.type == TypeInt) && intOrRealValue <= rhsIntOrRealValue) {
+                    isSatisfied = true;
+                }
+                break;
+            case NE_OP:
+                if (value.type == TypeVarChar && varCharValue != rhsVarCharValue ||
+                    (value.type == TypeReal || value.type == TypeInt) && intOrRealValue != rhsIntOrRealValue) {
+                    isSatisfied = true;
+                }
+                break;
+            case NO_OP:
                 isSatisfied = true;
-            }
-            break;
-        case GT_OP:
-            if (value.data > rhsValue) {
-                isSatisfied = true;
-            }
-            break;
-        case GE_OP:
-            if (value.data >= rhsValue) {
-                isSatisfied = true;
-            }
-            break;
-        case LT_OP:
-            if (value.data < rhsValue) {
-                isSatisfied = true;
-            }
-            break;
-        case LE_OP:
-            if (value.data <= rhsValue) {
-                isSatisfied = true;
-            }
-            break;
-        case NE_OP:
-            if (value.data != rhsValue) {
-                isSatisfied = true;
-            }
-            break;
-        case NO_OP:
-            isSatisfied = true;
-            break;
+                break;
+        }
     }
 
     if(isSatisfied) {
@@ -456,7 +478,6 @@ RC Filter::getNextTuple(void *data) {
     }
 
     ////TODO::currentTuple points to next tuple;
-    ////if bRhsIsAttr = TRUE
 
     free(attrsExist);
     return 0;

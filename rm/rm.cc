@@ -621,7 +621,6 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     while(rmsi.getNextTuple(rid, data) != RM_EOF){
         void *key = malloc(PAGE_SIZE);
         if(targetAttribute.type != TypeVarChar) {
-            void *key = malloc(PAGE_SIZE);
             unsigned length;
             memcpy(&length, data, UNSIGNED_SIZE);
             memcpy(key, (char* )data + UNSIGNED_SIZE, length);
@@ -636,8 +635,6 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
 
     return 0;
 }
-
-
 
 RC RelationManager::destroyIndex(const std::string &tableName, const std::string &attributeName) {
     std::string filename = tNANToIndexFile[attributeName];
@@ -662,7 +659,8 @@ RC RelationManager::indexScan(const std::string &tableName,
         }
     }
     im->scan(ixFileHandle, targetAttribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive,
-             reinterpret_cast<IX_ScanIterator &>(rm_IndexScanIterator));
+             rm_IndexScanIterator.ixsi);
+
     return 0;
 }
 

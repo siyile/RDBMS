@@ -47,7 +47,7 @@ public:
 
     virtual ~Iterator() = default;
 
-    static void getTableNameFromRelAttr(const std::string &tableName, std::vector<Attribute> const &attrs);
+   // static void getTableNameFromRelAttr(const std::string &tableName, std::vector<Attribute> const &attrs);
 
     static void getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> const &attrs, const std::string &attrName, unsigned index, unsigned short &length, void *data);
 
@@ -171,7 +171,6 @@ public:
     void getAttributes(std::vector<Attribute> &attributes) const override {
         attributes.clear();
         attributes = this->attrs;
-
 
         // For attribute in std::vector<Attribute>, name it as rel.attr
         for (Attribute &attribute : attributes) {
