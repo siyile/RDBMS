@@ -18,6 +18,8 @@ const int fail = -1;
 #include "qe.h"
 #include "../rm/rm_test_util.h"
 
+using namespace std;
+
 // Global Initialization
 // RelationManager *rm = RelationManager::instance();
 IndexManager &im = IndexManager::instance();

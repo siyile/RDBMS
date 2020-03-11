@@ -16,11 +16,6 @@ typedef enum {
 //    For INT and REAL: use 4 bytes
 //    For VARCHAR: use 4 bytes for the length followed by the characters
 
-
-RecordBasedFileManager *rbfm;
-IndexManager *im;
-RelationManager *rm;
-
 struct Value {
     AttrType type;          // type of value
     void *data;             // value

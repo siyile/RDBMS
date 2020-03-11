@@ -233,16 +233,16 @@ RC RelationManager::insertTuple(const std::string &tableName, const void *data, 
 
     auto attrs = tableNameToAttrMap[tableName];
 
-    for(auto attr: attrs) {
-        if (tNANToIndexFile.find(attr.name) == tNANToIndexFile.end()) {
-            createIndex(tableName, attr.name);
-        }
-    }
+//    for(const auto& attr: attrs) {
+//        if (tNANToIndexFile.find(attr.name) == tNANToIndexFile.end()) {
+//            createIndex(tableName, attr.name);
+//        }
+//    }
 
     if (rbfm->insertRecord(fileHandle, attrs, data, rid) != 0) {
         rbfm->closeFile(fileHandle);
         return -1;
-    };
+    }
 
     rbfm->closeFile(fileHandle);
     return 0;
@@ -602,18 +602,22 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     if (tNANToIndexFile.find(tNAN) == tNANToIndexFile.end()) {
         im->createFile(indexFileName);
         tNANToIndexFile[tNAN] = indexFileName;
+        return 0;
+    } else {
+        return -1;
     }
 
     RM_ScanIterator rmsi;
     std::vector<Attribute> attributes = tableNameToAttrMap[tableName];
     std::vector<std::string> attributeNames;
     Attribute targetAttribute;
-    for (auto attribute: attributes) {
+    for (const auto& attribute: attributes) {
         attributeNames.push_back(attribute.name);
         if (attribute.name == attributeName) {
             targetAttribute = attribute;
         }
     }
+
     scan(tableName, attributeName, NO_OP, nullptr, attributeNames, rmsi);
 
     RID rid;
