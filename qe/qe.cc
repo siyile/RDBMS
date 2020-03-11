@@ -53,7 +53,7 @@ void Iterator::concatenateTuple(void *data, void *left, void *right, std::vector
     int lSize = leftAttrs.size();
     int rSize = rightAttrs.size();
 
-    int nullIndicatorSize = (lSize + rSize) / 8;
+    int nullIndicatorSize = (lSize + rSize + 7) / 8;
 
     // copy left null indicator
     memcpy(data, left, lSize);
@@ -67,10 +67,10 @@ void Iterator::concatenateTuple(void *data, void *left, void *right, std::vector
     }
 
     unsigned pos = nullIndicatorSize;
-    unsigned leftLength = getTupleLength(leftAttrs, left) - lSize / 8;
+    unsigned leftLength = getTupleLength(leftAttrs, left) - (lSize + 7) / 8;
     memcpy((char *) data + pos, (char *) left + lSize / 8, leftLength);
     pos += leftLength;
-    unsigned rightLength = getTupleLength(rightAttrs, right) - rSize / 8;
+    unsigned rightLength = getTupleLength(rightAttrs, right) - (rSize + 7) / 8;
     memcpy((char *) data + pos, (char *) right + rSize / 8, rightLength);
 }
 
