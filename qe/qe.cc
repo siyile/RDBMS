@@ -11,6 +11,149 @@ condition leftattr ->attrName->indexfile
 
 // ... the rest of your implementations go here
 
+Filter::Filter(Iterator *input, Condition &condition) {
+    this->targetAttrName = condition.lhsAttr;
+    input->getAttributes(this->relAttrs);
+    this->input = input;
+
+    //get tableName from relation
+    //input->getTableNameFromRelAttr(this->tableName, relAttrs);
+
+    for (const Attribute& attr : relAttrs) {
+        if (attr.name == targetAttrName) {
+            this->targetAttribute = attr;
+            break;
+        }
+    }
+}
+
+RC Filter::getNextTuple(void *data) {
+    if (input->getNextTuple(currentTuple) == QE_EOF) {
+        return QE_EOF;
+    }
+
+    while (!isTupleSatisfied()) {
+        getNextTuple(data);
+    }
+
+    memcpy(data, currentTuple, Iterator::getTupleLength(relAttrs, currentTuple));
+
+    return 0;
+}
+
+bool Filter::isTupleSatisfied() {
+
+    unsigned short size = relAttrs.size();
+    unsigned short pos = 0;
+
+    int *attrsExist = new int[size];
+
+    RecordBasedFileManager::getAttrExistArray(pos, attrsExist, currentTuple, size, false);
+
+    // get data from tuple
+    void* data = malloc(PAGE_SIZE);
+    unsigned short _;
+    getLengthAndDataFromTuple(currentTuple, relAttrs, "", targetAttrIndex, _, data);
+
+    bool res = RecordBasedFileManager::compareValue(rhsValue.data, data, op, targetAttribute.type);
+
+    return res;
+}
+
+void Filter::getAttributes(std::vector<Attribute> &attrs) const {
+    for (auto const & it : relAttrs) {
+        auto attr = it;
+        attr.name = "filter." + it.name;
+        attrs.push_back(attr);
+    }
+}
+
+
+Project::Project(Iterator *input, const std::vector<std::string> &attrNames) {
+    input->getAttributes(this->relAttrs);
+
+    this->input = input;
+    for (int i = 0; i < relAttrs.size(); i++) {
+        // PositionToAttrMap[i] = relAttrs[i];
+        attrNameToAttrMap[relAttrs[i].name] = relAttrs[i];
+        for (int j = 0; j < targetAttributesNames.size(); j++) {
+            if (targetAttributesNames[j] == relAttrs[i].name) {
+                targetIndexToTupleIndexMap[j] = i;
+            }
+        }
+    }
+    //this->targetAttributesNames = attrNames;
+    this->targetAttributesNames.insert(targetAttributesNames.begin(), attrNames.begin(), attrNames.end());
+
+    for (int i = 0; i < attrNames.size(); i++) {
+        int tupleIndex = targetIndexToTupleIndexMap[i];
+        targetAttributes.push_back(relAttrs[tupleIndex]);
+    }
+}
+
+RC Project::getNextTuple(void *data) {
+
+    unsigned short size = relAttrs.size();
+    unsigned short pos = 0;
+
+    int *attrsExist = new int[size];
+
+    RecordBasedFileManager::getAttrExistArray(pos, attrsExist, currentTuple, size, false);
+
+    unsigned short nullIndicatorSize = (targetAttributesNames.size() + 7) / 8;
+    auto *nullIndicator = new unsigned char[nullIndicatorSize];
+    // set nullIndicator all to 1
+    memset(nullIndicator, 0xff, nullIndicatorSize);
+
+    for (int i = 0; i < size; i++){
+        if (attrsExist[i] != 1) {
+            continue;
+        }
+
+        tupleIndexToOffsetMap[i] = pos;
+        if (relAttrs[i].type != TypeVarChar) {
+            pos += UNSIGNED_SIZE;
+        } else {
+            unsigned length;
+            memcpy(&length, (char *)currentTuple + pos, UNSIGNED_SIZE);
+            pos += UNSIGNED_SIZE + length;
+        }
+    }
+
+    unsigned dataPos = nullIndicatorSize;
+    unsigned offset;
+    int tupleIndex;
+
+    for (int i = 0; i < targetAttributesNames.size(); i++) {
+        tupleIndex = targetIndexToTupleIndexMap[i];
+        if (attrsExist[tupleIndex] != 1) {
+            continue;
+        } else {
+            offset = tupleIndexToOffsetMap[i];
+            if (relAttrs[tupleIndex].type != TypeVarChar) {
+                memcpy((char*)data + dataPos, (char*)currentTuple + offset, UNSIGNED_SIZE);
+                dataPos += UNSIGNED_SIZE;
+            } else {
+                unsigned length;
+                memcpy(&length, (char*)currentTuple + offset, UNSIGNED_SIZE);
+                memcpy((char*)data + dataPos, (char*) currentTuple + offset, length + UNSIGNED_SIZE);
+                dataPos += UNSIGNED_SIZE + length;
+            }
+        }
+        RecordBasedFileManager::setNullIndicator(nullIndicator, i, 0);
+    }
+    memcpy(data,nullIndicator, nullIndicatorSize);
+    return 0;
+}
+
+void Project::getAttributes(std::vector<Attribute> &attrs) const {
+    for (auto const & it : targetAttributes) {
+        auto attr = it;
+        attr.name = "project." + it.name;
+        attrs.push_back(attr);
+    }
+}
+
 unsigned Iterator::getAttributesEstLength(std::vector<Attribute> const &attrs) {
     unsigned length = 0;
     for (auto const & it : attrs) {
@@ -344,236 +487,3 @@ void INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
         attrs.push_back(attr);
     }
 }
-
-//void Iterator::getTableNameFromRelAttr(const std::string &tableName,std::vector<Attribute> const &attrs) {
-//    for(char ch : attrs[0].name) {
-//        if (ch == '.') {
-//            break;
-//        } else {
-//            tableName += ch;
-//        }
-//    }
-//}
-
-Filter::Filter(Iterator *input, Condition &condition) {
-    this->targetAttrName = condition.lhsAttr;
-    input->getAttributes(this->relAttrs);
-    this->input = input;
-
-    //get tableName from relation
-    //input->getTableNameFromRelAttr(this->tableName, relAttrs);
-
-    for (Attribute attr : relAttrs) {
-        if (attr.name == targetAttrName) {
-            this->targetAttribute = attr;
-            break;
-        }
-    }
-}
-
-RC Filter::getNextTuple(void *data) {
-    if (input->getNextTuple(currentTuple) == QE_EOF) {
-        return QE_EOF;
-    }
-    while (!isTupleSatisfied()) {
-        void *newTuple = malloc(PAGE_SIZE);
-        getNextTuple(newTuple);
-    }
-    memcpy(data, currentTuple, Iterator::getTupleLength(relAttrs, currentTuple));
-
-    return 0;
-}
-
-bool Filter::isTupleSatisfied() {
-
-    unsigned short size = relAttrs.size();
-    unsigned short pos = 0;
-
-    int *attrsExist = new int[size];
-
-    RecordBasedFileManager::getAttrExistArray(pos, attrsExist, currentTuple, size, true);
-    Value value;
-    value.type = targetAttribute.type;
-
-    std::string varCharValue;
-    unsigned intOrRealValue;
-
-    for (unsigned i = 0; i < size; i++) {
-        //if it doesn't exist
-        if (attrsExist[i] != 1) {
-            if (relAttrs[i].name == targetAttrName) {
-                return false;
-            } else {
-                continue;
-            }
-        } else {
-            if (relAttrs[i].name == targetAttrName) {
-                if (targetAttribute.type != TypeVarChar) {
-                    memcpy(&intOrRealValue, (char *)currentTuple + pos, UNSIGNED_SIZE);
-                } else {
-                    unsigned length;
-                    memcpy(&length, (char *)currentTuple + pos, UNSIGNED_SIZE);
-                    pos += UNSIGNED_SIZE;
-                    memcpy(&varCharValue, (char *)currentTuple + pos, length);
-                }
-                break;
-            } else {
-                if(relAttrs[i].type != TypeVarChar) {
-                    pos += UNSIGNED_SIZE;
-                } else {
-                    unsigned length;
-                    memcpy(&length, (char *)currentTuple + pos, UNSIGNED_SIZE);
-                    pos += UNSIGNED_SIZE + length;
-                }
-            }
-        }
-    }
-
-    bool isSatisfied = false;
-
-    if (value.type == rhsValue.type) {
-        std::string rhsVarCharValue;
-        unsigned rhsIntOrRealValue;
-        unsigned rhsVarCharValueLength;
-
-        if(rhsValue.type == TypeVarChar) {
-            memcpy(&rhsVarCharValueLength, rhsValue.data, UNSIGNED_SIZE);
-            memcpy(&rhsVarCharValue, (char*) rhsValue.data + UNSIGNED_SIZE, rhsVarCharValueLength);
-        } else {
-            memcpy(&rhsIntOrRealValue, rhsValue.data,UNSIGNED_SIZE);
-        }
-
-        switch (op) {
-            case EQ_OP:
-                if (value.type == TypeVarChar && varCharValue == rhsVarCharValue ||
-                (value.type == TypeReal || value.type == TypeInt) && intOrRealValue == rhsIntOrRealValue) {
-                    isSatisfied = true;
-                }
-                break;
-            case GT_OP:
-                if (value.type == TypeVarChar && varCharValue > rhsVarCharValue ||
-                (value.type == TypeReal || value.type == TypeInt) && intOrRealValue > rhsIntOrRealValue) {
-                    isSatisfied = true;
-                }
-                break;
-            case GE_OP:
-                if (value.type == TypeVarChar && varCharValue >= rhsVarCharValue ||
-                    (value.type == TypeReal || value.type == TypeInt) && intOrRealValue >= rhsIntOrRealValue) {
-                    isSatisfied = true;
-                }
-                break;
-            case LT_OP:
-                if (value.type == TypeVarChar && varCharValue < rhsVarCharValue ||
-                    (value.type == TypeReal || value.type == TypeInt) && intOrRealValue < rhsIntOrRealValue) {
-                    isSatisfied = true;
-                }
-                break;
-            case LE_OP:
-                if (value.type == TypeVarChar && varCharValue <= rhsVarCharValue ||
-                    (value.type == TypeReal || value.type == TypeInt) && intOrRealValue <= rhsIntOrRealValue) {
-                    isSatisfied = true;
-                }
-                break;
-            case NE_OP:
-                if (value.type == TypeVarChar && varCharValue != rhsVarCharValue ||
-                    (value.type == TypeReal || value.type == TypeInt) && intOrRealValue != rhsIntOrRealValue) {
-                    isSatisfied = true;
-                }
-                break;
-            case NO_OP:
-                isSatisfied = true;
-                break;
-        }
-    }
-
-    free(attrsExist);
-    return isSatisfied;
-}
-
-void Filter::getAttributes(std::vector<Attribute> &attrs) const {
-    attrs = relAttrs;
-}
-
-
-Project::Project(Iterator *input, const std::vector<std::string> &attrNames) {
-    input->getAttributes(this->relAttrs);
-
-    this->input = input;
-    for (unsigned i = 0; i < relAttrs.size(); i++) {
-       // PositionToAttrMap[i] = relAttrs[i];
-        attrNameToAttrMap[relAttrs[i].name] = relAttrs[i];
-        for (unsigned j = 0; j< targetAttributesNames.size(); j++) {
-            if (targetAttributesNames[j] == relAttrs[i].name) {
-                targetIndexToTupleIndexMap[j] = i;
-            }
-        }
-    }
-    //this->targetAttributesNames = attrNames;
-    this->targetAttributesNames.insert(targetAttributesNames.begin(), attrNames.begin(), attrNames.end());
-}
-
-RC Project::getNextTuple(void *data) {
-
-        unsigned short size = relAttrs.size();
-        unsigned short pos = 0;
-
-        int *attrsExist = new int[size];
-
-        RecordBasedFileManager::getAttrExistArray(pos, attrsExist, currentTuple, size, true);
-
-        unsigned short nullIndicatorSize = (targetAttributesNames.size() + 7) / 8;
-        auto *nullIndicator = new unsigned char[nullIndicatorSize];
-        // set nullIndicator all to 1
-        memset(nullIndicator, 0xff, nullIndicatorSize);
-
-        for (unsigned i = 0; i < size; i++){
-            if (attrsExist[i] != 1) {
-                continue;
-            }
-
-            tupleIndexToOffsetMap[i] = pos;
-            if (relAttrs[i].type != TypeVarChar) {
-                pos += UNSIGNED_SIZE;
-            } else {
-                unsigned length;
-                memcpy(&length, (char *)currentTuple + pos, UNSIGNED_SIZE);
-                pos += UNSIGNED_SIZE + length;
-            }
-        }
-
-        unsigned dataPos = nullIndicatorSize;
-        unsigned offset;
-        unsigned tupleIndex;
-
-        for (unsigned i = 0; i < targetAttributesNames.size(); i++) {
-            tupleIndex = targetIndexToTupleIndexMap[i];
-            if (attrsExist[tupleIndex] != 1) {
-                continue;
-            } else {
-                offset = tupleIndexToOffsetMap[i];
-                if (relAttrs[tupleIndex].type != TypeVarChar) {
-                    memcpy((char*)data + dataPos, (char*)currentTuple + offset, UNSIGNED_SIZE);
-                    dataPos += UNSIGNED_SIZE;
-                } else {
-                    unsigned length;
-                    memcpy(&length, (char*)currentTuple + offset, UNSIGNED_SIZE);
-                    memcpy((char*)data + dataPos, (char*) currentTuple + offset, length + UNSIGNED_SIZE);
-                    dataPos += UNSIGNED_SIZE + length;
-                }
-            }
-            RecordBasedFileManager::setNullIndicator(nullIndicator, i, 0);
-        }
-        memcpy(data,nullIndicator, nullIndicatorSize);
-        return 0;
-}
-
-void Project::getAttributes(std::vector<Attribute> &attrs) const {
-//    for (unsigned i = 0; i < targetAttributesNames.size(); i++) {
-//        std::string attrName = targetAttributesNames[i];
-//        attrs.push_back(attrNameToAttrMap[attrName]);
-//    }
-    for (auto attrName: targetAttributesNames) {
-        attrs.push_back(attrNameToAttrMap[attrName]);
-    }
-}
-

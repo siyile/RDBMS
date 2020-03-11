@@ -224,6 +224,8 @@ public:
 
     static void createRIDRecord(void *record, RID &rid);
 
+    static bool compareValue(const void *value, void* data, CompOp compOp, AttrType attrType);
+
 
 
 protected:

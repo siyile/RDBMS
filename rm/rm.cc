@@ -653,7 +653,7 @@ RC RelationManager::indexScan(const std::string &tableName,
     IXFileHandle ixFileHandle;
     std::vector<Attribute> attributes = tableNameToAttrMap[tableName];
     Attribute targetAttribute;
-    for (auto attribute: attributes) {
+    for (const auto& attribute: attributes) {
         if (attribute.name == attributeName) {
             targetAttribute = attribute;
         }
@@ -667,6 +667,7 @@ RC RelationManager::indexScan(const std::string &tableName,
 RC  RM_IndexScanIterator::getNextEntry(RID &rid, void *key) {
     return ixsi.getNextEntry(rid,key);
 }
+
 RC RM_IndexScanIterator::close() {
     return ixsi.close();
 }

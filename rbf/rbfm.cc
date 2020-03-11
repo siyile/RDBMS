@@ -789,6 +789,71 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attrib
     return 0;
 }
 
+bool RecordBasedFileManager::compareValue(const void *value, void *data, CompOp compOp, AttrType attrType) {
+    if (compOp == NO_OP)
+        return true;
+
+    int valueInt = 0;
+    float valueReal = 0;
+    std::string strValue;
+
+    int dataInt = 0;
+    float dataReal = 0;
+    std::string dataValue;
+
+    switch (attrType) {
+
+        case TypeInt:
+            memcpy(&valueInt, value, INT_SIZE);
+            memcpy(&dataInt, (char *) data, INT_SIZE);
+            break;
+        case TypeReal:
+            memcpy(&valueReal, value, INT_SIZE);
+            memcpy(&dataReal, (char *) data, INT_SIZE);
+            break;
+        case TypeVarChar:
+            unsigned length;
+            memcpy(&length, value, UNSIGNED_SIZE);
+            strValue.assign((char *) value + UNSIGNED_SIZE, length);
+
+            memcpy(&length, (char *) data, UNSIGNED_SIZE);
+            dataValue.assign((char *) data + UNSIGNED_SIZE, length);
+            break;
+    }
+
+    switch (compOp) {
+        case EQ_OP:
+            return (attrType == TypeInt && dataInt == valueInt) ||
+                   (attrType == TypeReal && dataReal == valueReal) ||
+                   (attrType == TypeVarChar && dataValue == strValue);
+        case LT_OP:
+            return (attrType == TypeInt && dataInt < valueInt) ||
+                   (attrType == TypeReal && dataReal < valueReal) ||
+                   (attrType == TypeVarChar && dataValue < strValue);
+        case LE_OP:
+            return (attrType == TypeInt && dataInt <= valueInt) ||
+                   (attrType == TypeReal && dataReal <= valueReal) ||
+                   (attrType == TypeVarChar && dataValue <= strValue);
+        case GT_OP:
+            return (attrType == TypeInt && dataInt > valueInt) ||
+                   (attrType == TypeReal && dataReal > valueReal) ||
+                   (attrType == TypeVarChar && dataValue > strValue);
+        case GE_OP:
+            return (attrType == TypeInt && dataInt >= valueInt) ||
+                   (attrType == TypeReal && dataReal >= valueReal) ||
+                   (attrType == TypeVarChar && dataValue >= strValue);
+        case NE_OP:
+            return (attrType == TypeInt && dataInt != valueInt) ||
+                   (attrType == TypeReal && dataReal != valueReal) ||
+                   (attrType == TypeVarChar && dataValue != strValue);
+        case NO_OP:
+            return true;
+    }
+
+
+    return false;
+}
+
 RBFM_ScanIterator::RBFM_ScanIterator() {
     rbfm = &RecordBasedFileManager::instance();
 }
@@ -864,63 +929,9 @@ bool RBFM_ScanIterator::checkConditionalAttr() {
     if ((nullIndicator & 0x80U) == 0x80U)
         return false;
 
-    int valueInt = 0;
-    float valueReal = 0;
-    std::string strValue;
-
-    int dataInt = 0;
-    float dataReal = 0;
-    std::string dataValue;
-
-    switch (attrType) {
-
-        case TypeInt:
-            memcpy(&valueInt, value, INT_SIZE);
-            memcpy(&dataInt, (char *) data + NULL_INDICATOR_UNIT_SIZE, INT_SIZE);
-            break;
-        case TypeReal:
-            memcpy(&valueReal, value, INT_SIZE);
-            memcpy(&dataReal, (char *) data + NULL_INDICATOR_UNIT_SIZE, INT_SIZE);
-            break;
-        case TypeVarChar:
-            unsigned length;
-            memcpy(&length, value, UNSIGNED_SIZE);
-            strValue.assign((char *) value + UNSIGNED_SIZE, length);
-
-            memcpy(&length, (char *) data + NULL_INDICATOR_UNIT_SIZE, UNSIGNED_SIZE);
-            dataValue.assign((char *) data + NULL_INDICATOR_UNIT_SIZE + UNSIGNED_SIZE, length);
-            break;
-    }
-
+    bool res = RecordBasedFileManager::compareValue(value, (char *) data + NULL_INDICATOR_UNIT_SIZE, compOp, attrType);
     free(data);
 
-    switch (compOp) {
-        case EQ_OP:
-            return (attrType == TypeInt && dataInt == valueInt) ||
-                   (attrType == TypeReal && dataReal == valueReal) ||
-                   (attrType == TypeVarChar && dataValue == strValue);
-        case LT_OP:
-            return (attrType == TypeInt && dataInt < valueInt) ||
-                   (attrType == TypeReal && dataReal < valueReal) ||
-                   (attrType == TypeVarChar && dataValue < strValue);
-        case LE_OP:
-            return (attrType == TypeInt && dataInt <= valueInt) ||
-                   (attrType == TypeReal && dataReal <= valueReal) ||
-                   (attrType == TypeVarChar && dataValue <= strValue);
-        case GT_OP:
-            return (attrType == TypeInt && dataInt > valueInt) ||
-                   (attrType == TypeReal && dataReal > valueReal) ||
-                   (attrType == TypeVarChar && dataValue > strValue);
-        case GE_OP:
-            return (attrType == TypeInt && dataInt >= valueInt) ||
-                   (attrType == TypeReal && dataReal >= valueReal) ||
-                   (attrType == TypeVarChar && dataValue >= strValue);
-        case NE_OP:
-            return (attrType == TypeInt && dataInt != valueInt) ||
-                   (attrType == TypeReal && dataReal != valueReal) ||
-                   (attrType == TypeVarChar && dataValue != strValue);
-        case NO_OP:
-            return true;
-    }
-};
+    return res;
+}
 

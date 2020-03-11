@@ -190,9 +190,9 @@ class Filter : public Iterator {
     // Filter operator
 public:
     std::vector<Attribute> relAttrs;
-    std::string tableName;
     std::string targetAttrName;
     Attribute targetAttribute;
+    int targetAttrIndex;
 
     std::string lhsAttr;        // left-hand side attribute
     CompOp op;                  // comparison operator
@@ -223,10 +223,10 @@ public:
     std::vector<Attribute> relAttrs;
     std::unordered_map<std::string, Attribute> attrNameToAttrMap;
     //std::unordered_map<unsigned , Attribute> PositionToAttrMap;
-    std::unordered_map<unsigned, unsigned> targetIndexToTupleIndexMap;
-    std::unordered_map<unsigned, unsigned> tupleIndexToOffsetMap;
+    std::unordered_map<int, int> targetIndexToTupleIndexMap;
+    std::unordered_map<int, int> tupleIndexToOffsetMap;
     std::vector<std::string> targetAttributesNames;
-    //std::vector<Attribute> targetAttributes;
+    std::vector<Attribute> targetAttributes;
 
     void* currentTuple;
     Iterator *input;
