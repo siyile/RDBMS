@@ -15,6 +15,7 @@
 # define TABLES_NAME "Tables"
 # define COLUMNS_NAME "Columns"
 # define EXT ".tbl"
+# define IDX_EXT ".idx"
 # define SM_BLOCK 500
 
 #define NULL_STRING ""
@@ -87,10 +88,13 @@ public:
     // tableName -> vector<Attribute>
     std::unordered_map<std::string, std::vector<Attribute>> tableNameToAttrMap;
 
-    //tableName.attributeName ->index file name
+    //tableName_attributeName ->index file name
     std::unordered_map<std::string, std::string> tNANToIndexFile;
 
-    void appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len);
+    // tableName -> vector<Attribute Name>
+    std::unordered_map<std::string, std::vector<int>> indexMap;
+
+    static void appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len);
 
     RC createCatalog();
 
@@ -131,10 +135,10 @@ public:
             const std::vector<std::string> &attributeNames, // a list of projected attributes
             RM_ScanIterator &rm_ScanIterator);
 
-    void generateTablesData(unsigned id, std::string tableName, std::string fileName, void *data,
+    static void generateTablesData(unsigned id, std::string tableName, std::string fileName, void *data,
                             bool isSystemTable);
 
-    void generateColumnsData(unsigned id, Attribute attr, unsigned position, void *data);
+    static void generateColumnsData(unsigned id, Attribute attr, unsigned position, void *data);
 
     void initScanTablesOrColumns(bool isTables);
 
@@ -152,6 +156,10 @@ public:
     RC createIndex(const std::string &tableName, const std::string &attributeName);
 
     RC destroyIndex(const std::string &tableName, const std::string &attributeName);
+
+    static std::string getIndexNameHash(std::string tableName, std::string attrName);
+
+    void get_all(const fs::path& root, const string& ext, vector<fs::path>& ret);
 
     // indexScan returns an iterator to allow the caller to go through qualified entries in index
     RC indexScan(const std::string &tableName,

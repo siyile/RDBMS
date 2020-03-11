@@ -854,6 +854,51 @@ bool RecordBasedFileManager::compareValue(const void *value, void *data, CompOp 
     return false;
 }
 
+void RecordBasedFileManager::readAttributeFromRawData(const void *data, void *returnData, std::vector<Attribute> attrs,
+                                                      const std::string& attrName, int index) {
+    int *attrsExist = new int[attrs.size()];
+    unsigned short pos = 0;
+    RecordBasedFileManager::getAttrExistArray(pos, attrsExist, data, attrs.size(), false);
+    for (int i = 0; i < attrs.size(); i++) {
+        if (i == index || (i == -1 && attrName == attrs[i].name)) {
+            if (attrsExist[i] == 0) {
+                throw std::logic_error("NULL KEY APPEAR!");
+            }
+            if (attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
+                memcpy(returnData, (char *) data + pos, UNSIGNED_SIZE);
+            } else {
+                unsigned stringLength;
+                memcpy(&stringLength, (char *) data + pos, UNSIGNED_SIZE);
+                memcpy(returnData, (char *) data + pos, stringLength + UNSIGNED_SIZE);
+            }
+            delete[](attrsExist);
+            return;
+        }
+        if (attrsExist[i]) {
+
+            if (attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
+                pos += UNSIGNED_SIZE;
+            } else {
+                unsigned stringLength;
+                memcpy(&stringLength, (char *) data + pos, UNSIGNED_SIZE);
+                pos += UNSIGNED_SIZE;
+                pos += stringLength;
+            }
+        }
+    }
+
+
+}
+
+int RecordBasedFileManager::getAttrIndex(const std::vector<Attribute> attrs, const std::string &attrName) {
+    for (int i = 0; i < attrs.size(); i++) {
+        if (attrs[i].name == attrName) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 RBFM_ScanIterator::RBFM_ScanIterator() {
     rbfm = &RecordBasedFileManager::instance();
 }

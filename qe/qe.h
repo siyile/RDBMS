@@ -42,15 +42,11 @@ public:
 
     virtual ~Iterator() = default;
 
-   // static void getTableNameFromRelAttr(const std::string &tableName, std::vector<Attribute> const &attrs);
-
     static void getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> const &attrs, const std::string &attrName, unsigned index, unsigned short &length, void *data);
 
     static unsigned getAttributesEstLength(std::vector<Attribute> const &attrs);
 
     static unsigned getTupleLength(std::vector<Attribute> const &attrs, void *data);
-
-    static int getAttrIndex(std::vector<Attribute> attrs, const std::string& attrName);
 
     static void concatenateTuple(void *data, void *left, void *right, std::vector<Attribute> const &leftAttrs,
                                  std::vector<Attribute> const &rightAttrs);

@@ -22,6 +22,8 @@ public:
     RC openFile(const std::string &fileName, FileHandle &fileHandle);   // Open a file
     RC closeFile(FileHandle &fileHandle);                               // Close a file
 
+    static bool exists_test (const std::string& name);
+
 protected:
     PagedFileManager();                                                 // Prevent construction
     ~PagedFileManager();                                                // Prevent unwanted destruction

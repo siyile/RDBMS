@@ -38,11 +38,11 @@ RelationManager::RelationManager() {
     tableNameToFileMap[TABLES_NAME] = TABLES_FILE_NAME;
     tableNameToFileMap[COLUMNS_NAME] = COLUMNS_FILE_NAME;
 
-    for (auto attr : tableAttr) {
+    for (const auto& attr : tableAttr) {
         tableAttributeNames.push_back(attr.name);
     }
 
-    for (auto attr: columnAttr) {
+    for (const auto& attr: columnAttr) {
         columnAttributeNames.push_back(attr.name);
     }
 
@@ -50,6 +50,24 @@ RelationManager::RelationManager() {
         // read physical file into memory hashmap
         initScanTablesOrColumns(true);
         initScanTablesOrColumns(false);
+        
+        // scan all index file
+        for (const auto & it : tableNameToAttrMap) {
+            for (int i = 0; i < it.second.size(); i++) {
+                Attribute attr = it.second[i];
+                const std::string & tableName = it.first;
+                std::string indexNameHash = getIndexNameHash(tableName, attr.name);
+                std::string fileName = indexNameHash + IDX_EXT;
+                if (PagedFileManager::exists_test(fileName)) {
+                    tNANToIndexFile[indexNameHash] = fileName;
+                    if (indexMap.find(tableName) == indexMap.end()) {
+                        std::vector<int> vector;
+                        indexMap[tableName] = vector;
+                    }
+                    indexMap[tableName].push_back(i);
+                }
+            }
+        }
     } else {
         // do nothing
     }
@@ -99,12 +117,19 @@ RC RelationManager::deleteCatalog() {
         rbfm->destroyFile(element.second);
     }
 
+    // delete all index files
+    for (const auto & it : tNANToIndexFile) {
+        rbfm->destroyFile(it.second);
+    }
+
     // clear all hashmap
     tableNameToFileMap.clear();
     tableNameToIdMap.clear();
     idToTableNameMap.clear();
     tableNameToIsSystemTableMap.clear();
     tableNameToAttrMap.clear();
+    tNANToIndexFile.clear();
+    indexMap.clear();
 
     return 0;
 }
@@ -193,6 +218,16 @@ RC RelationManager::deleteTable(const std::string &tableName) {
     free(data);
 
     std::string fileName = tableNameToFileMap[tableName];
+
+    // delete index file
+    for (const auto & it : indexMap[tableName]) {
+        Attribute attr = tableNameToAttrMap[tableName][it];
+        std::string indexNameHash = getIndexNameHash(tableName, attr.name);
+        rbfm->destroyFile(tNANToIndexFile[indexNameHash]);
+        tNANToIndexFile.erase(indexNameHash);
+    }
+    indexMap.erase(tableName);
+
     rbfm->destroyFile(fileName);
     tableNameToFileMap.erase(tableName);
 
@@ -233,18 +268,28 @@ RC RelationManager::insertTuple(const std::string &tableName, const void *data, 
 
     auto attrs = tableNameToAttrMap[tableName];
 
-//    for(const auto& attr: attrs) {
-//        if (tNANToIndexFile.find(attr.name) == tNANToIndexFile.end()) {
-//            createIndex(tableName, attr.name);
-//        }
-//    }
-
     if (rbfm->insertRecord(fileHandle, attrs, data, rid) != 0) {
         rbfm->closeFile(fileHandle);
         return -1;
     }
 
+    void* key = malloc(PAGE_SIZE);
+
+    // insert into index file
+    for (const auto & i : indexMap[tableName]) {
+        // get key from raw data
+        RecordBasedFileManager::readAttributeFromRawData(data, key, attrs, "", i);
+
+        Attribute attr = attrs[i];
+        std::string indexFileName = tNANToIndexFile[getIndexNameHash(tableName, attr.name)];
+        IXFileHandle ixFileHandle;
+        im->openFile(indexFileName, ixFileHandle);
+        im->insertEntry(ixFileHandle, attr, key, rid);
+        im->closeFile(ixFileHandle);
+    }
+
     rbfm->closeFile(fileHandle);
+    free(key);
     return 0;
 }
 
@@ -267,19 +312,31 @@ RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid, bo
 
     auto attrs = tableNameToAttrMap[tableName];
 
-    for(auto attr: attrs) {
-        if (tNANToIndexFile.find(attr.name) != tNANToIndexFile.end()) {
-            destroyIndex(tableName, attr.name);
-        }
+    void* data = malloc(PAGE_SIZE);
+    readTuple(tableName, rid, data);
+
+    void* key = malloc(PAGE_SIZE);
+
+    // delete at index file
+    for (const auto & i : indexMap[tableName]) {
+        // get key from raw data
+        RecordBasedFileManager::readAttributeFromRawData(data, key, attrs, "", i);
+
+        Attribute attr = attrs[i];
+        std::string indexFileName = tNANToIndexFile[getIndexNameHash(tableName, attr.name)];
+        IXFileHandle ixFileHandle;
+        im->openFile(indexFileName, ixFileHandle);
+        im->deleteEntry(ixFileHandle, attr, key, rid);
+        im->closeFile(ixFileHandle);
     }
 
-    if (rbfm->deleteRecord(fileHandle, attrs, rid) != 0) {
-        rbfm->closeFile(fileHandle);
-        return -1;
-    };
+    int rc = rbfm->deleteRecord(fileHandle, attrs, rid);
 
     rbfm->closeFile(fileHandle);
-    return 0;
+    free(data);
+    free(key);
+
+    return rc;
 }
 
 RC RelationManager::updateTuple(const std::string &tableName, const void *data, const RID &rid) {
@@ -291,18 +348,40 @@ RC RelationManager::updateTuple(const std::string &tableName, const void *data, 
         return -1;
     }
 
+    auto attrs = tableNameToAttrMap[tableName];
+
+    void* oldData = malloc(PAGE_SIZE);
+    readTuple(tableName, rid, oldData);
+
+    void* key = malloc(PAGE_SIZE);
+    // first delete then insert at indexFile
+    for (const auto & i : indexMap[tableName]) {
+        // get old key from raw data
+        RecordBasedFileManager::readAttributeFromRawData(oldData, key, attrs, "", i);
+
+        Attribute attr = attrs[i];
+        std::string indexFileName = tNANToIndexFile[getIndexNameHash(tableName, attr.name)];
+        IXFileHandle ixFileHandle;
+        im->openFile(indexFileName, ixFileHandle);
+        im->deleteEntry(ixFileHandle, attr, key, rid);
+
+        // get new key from data
+        RecordBasedFileManager::readAttributeFromRawData(data, key, attrs, "", i);
+        im->insertEntry(ixFileHandle, attr, key, rid);
+        im->closeFile(ixFileHandle);
+    }
+
     std::string fileName = tableNameToFileMap[tableName];
     FileHandle fileHandle;
     rbfm->openFile(fileName, fileHandle);
 
-    auto attrs = tableNameToAttrMap[tableName];
-    if (rbfm->updateRecord(fileHandle, attrs, data, rid) != 0) {
-        rbfm->closeFile(fileHandle);
-        return -1;
-    };
+    int rc = rbfm->updateRecord(fileHandle, attrs, data, rid);
+
+    free(oldData);
+    free(key);
 
     rbfm->closeFile(fileHandle);
-    return 0;
+    return rc;
 }
 
 RC RelationManager::readTuple(const std::string &tableName, const RID &rid, void *data) {
@@ -596,16 +675,27 @@ RC RM_ScanIterator::close() {
 // QE IX related
 
 RC RelationManager::createIndex(const std::string &tableName, const std::string &attributeName) {
+    std::string indexNameHash = getIndexNameHash(tableName, attributeName);
+    std::string indexFileName = indexNameHash + IDX_EXT;
 
-    std::string indexFileName = tableName + '.' + attributeName + "_index";
-    std::string tNAN = tableName + '.' + attributeName;
-    if (tNANToIndexFile.find(tNAN) == tNANToIndexFile.end()) {
+    if (tNANToIndexFile.find(indexNameHash) == tNANToIndexFile.end()) {
         im->createFile(indexFileName);
-        tNANToIndexFile[tNAN] = indexFileName;
-        return 0;
+        tNANToIndexFile[indexNameHash] = indexFileName;
+        if (indexMap.find(tableName) == indexMap.end()) {
+            std::vector<int> vector;
+            indexMap[tableName] = vector;
+        }
+        int i = RecordBasedFileManager::getAttrIndex(tableNameToAttrMap[tableName], attributeName);
+        indexMap[tableName].push_back(i);
     } else {
         return -1;
     }
+
+    if (PagedFileManager::instance().createFile(indexFileName) == -1) {
+        return -1;
+    }
+
+    return 0;
 
     RM_ScanIterator rmsi;
     std::vector<Attribute> attributes = tableNameToAttrMap[tableName];
@@ -666,6 +756,10 @@ RC RelationManager::indexScan(const std::string &tableName,
              rm_IndexScanIterator.ixsi);
 
     return 0;
+}
+
+std::string RelationManager::getIndexNameHash(std::string tableName, std::string attrName) {
+    return tableName + '_' + attrName;
 }
 
 RC  RM_IndexScanIterator::getNextEntry(RID &rid, void *key) {

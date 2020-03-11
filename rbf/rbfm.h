@@ -226,7 +226,9 @@ public:
 
     static bool compareValue(const void *value, void* data, CompOp compOp, AttrType attrType);
 
+    static void readAttributeFromRawData(const void *data, void *returnData, std::vector<Attribute> attrs, const std::string& attrName, int index);
 
+    static int getAttrIndex(const std::vector<Attribute> attrs, const std::string& attrName);
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction

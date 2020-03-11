@@ -182,15 +182,6 @@ unsigned Iterator::getTupleLength(std::vector<Attribute> const &attrs, void *dat
     return length;
 }
 
-int Iterator::getAttrIndex(std::vector<Attribute> attrs, const std::string& attrName) {
-    for (int i = 0; i < attrs.size(); i++) {
-        if (attrs[i].name == attrName) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 void Iterator::concatenateTuple(void *data, void *left, void *right, std::vector<Attribute> const &leftAttrs,
                                 std::vector<Attribute> const &rightAttrs) {
     int lSize = leftAttrs.size();
@@ -249,8 +240,8 @@ BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &conditio
     rightIn->getAttributes(rightAttrs);
 
     leftAttrsEstLength = getAttributesEstLength(leftAttrs);
-    leftAttrsIndex = getAttrIndex(leftAttrs, condition.lhsAttr);
-    rightAttrsIndex = getAttrIndex(rightAttrs, condition.rhsAttr);
+    leftAttrsIndex = RecordBasedFileManager::getAttrIndex(leftAttrs, condition.lhsAttr);
+    rightAttrsIndex = RecordBasedFileManager::getAttrIndex(rightAttrs, condition.rhsAttr);
 
     tuple1 = malloc(PAGE_SIZE);
 
@@ -421,6 +412,8 @@ void Iterator::getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> con
             }
         }
     }
+
+    delete[](attrsExist);
 }
 
 INLJoin::INLJoin(Iterator *leftIn, IndexScan *rightIn, const Condition &condition) {
@@ -434,8 +427,8 @@ INLJoin::INLJoin(Iterator *leftIn, IndexScan *rightIn, const Condition &conditio
     lrc = 0;
     rrc = QE_EOF;
 
-    leftAttrsIndex = getAttrIndex(leftAttrs, condition.lhsAttr);
-    rightAttrsIndex = getAttrIndex(rightAttrs, condition.rhsAttr);
+    leftAttrsIndex = RecordBasedFileManager::getAttrIndex(leftAttrs, condition.lhsAttr);
+    rightAttrsIndex = RecordBasedFileManager::getAttrIndex(rightAttrs, condition.rhsAttr);
 
     tuple = malloc(PAGE_SIZE);
 }
