@@ -678,6 +678,9 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     std::string indexNameHash = getIndexNameHash(tableName, attributeName);
     std::string indexFileName = indexNameHash + IDX_EXT;
 
+    std::vector<Attribute> attrs = tableNameToAttrMap[tableName];
+    int index = -1;
+
     if (tNANToIndexFile.find(indexNameHash) == tNANToIndexFile.end()) {
         im->createFile(indexFileName);
         tNANToIndexFile[indexNameHash] = indexFileName;
@@ -685,8 +688,8 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
             std::vector<int> vector;
             indexMap[tableName] = vector;
         }
-        int i = RecordBasedFileManager::getAttrIndex(tableNameToAttrMap[tableName], attributeName);
-        indexMap[tableName].push_back(i);
+        index = RecordBasedFileManager::getAttrIndex(tableNameToAttrMap[tableName], attributeName);
+        indexMap[tableName].push_back(index);
     } else {
         return -1;
     }
@@ -694,8 +697,6 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     if (PagedFileManager::instance().createFile(indexFileName) == -1) {
         return -1;
     }
-
-    return 0;
 
     RM_ScanIterator rmsi;
     std::vector<Attribute> attributes = tableNameToAttrMap[tableName];
@@ -712,18 +713,14 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
 
     RID rid;
     void *data = malloc(PAGE_SIZE);
+    IXFileHandle ixFileHandle;
+    im->openFile(indexFileName, ixFileHandle);
     while(rmsi.getNextTuple(rid, data) != RM_EOF){
         void *key = malloc(PAGE_SIZE);
-        if(targetAttribute.type != TypeVarChar) {
-            unsigned length;
-            memcpy(&length, data, UNSIGNED_SIZE);
-            memcpy(key, (char* )data + UNSIGNED_SIZE, length);
-        } else {
-            memcpy(key, data, UNSIGNED_SIZE);
-        }
-        IXFileHandle ixFileHandle;
+        RecordBasedFileManager::readAttributeFromRawData(data, key, attrs, "", index);
         im->insertEntry(ixFileHandle, targetAttribute, key, rid);
     }
+    im->closeFile(ixFileHandle);
     rmsi.close();
     free(data);
 
