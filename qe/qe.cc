@@ -480,3 +480,43 @@ void INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
         attrs.push_back(attr);
     }
 }
+
+Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, AggregateOp op) {
+    this->aggAttr =aggAttr;
+    this->op = op;
+    this->input = input;
+    this->maxValue = MIN_FLOAT;
+    this->minValue = MAX_FLOAT;
+    this->totalCount = 0;
+    this->aggAttrVector.push_back(aggAttr.name);
+}
+
+RC Aggregate::getNextTuple(void *data) {
+
+    Project(input, aggAttrVector);
+
+    while(proj->getNextTuple(data) != QE_EOF) {
+        float dataValue;
+        memcpy(&dataValue, data, UNSIGNED_SIZE);
+
+        totalCount++;
+        minValue = dataValue < minValue ? dataValue : minValue;
+        maxValue = dataValue > maxValue ? dataValue : maxValue;
+        valueSum += dataValue;
+        valueAvg = valueSum / totalCount;
+    }
+    return 0;
+}
+
+void Aggregate::getAttributes(std::vector<Attribute> &attrs) const {
+
+    Attribute targetAttr = this->aggAttr;
+
+    std::string targetAttrName;
+    targetAttrName = op + "(" + targetAttr.name + ")";
+    targetAttr.name = targetAttrName;
+
+    attrs.push_back(targetAttr);
+
+}
+
