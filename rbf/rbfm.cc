@@ -874,7 +874,6 @@ void RecordBasedFileManager::readAttributeFromRawData(const void *data, void *re
             return;
         }
         if (attrsExist[i]) {
-
             if (attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
                 pos += UNSIGNED_SIZE;
             } else {

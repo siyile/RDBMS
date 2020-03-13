@@ -21,9 +21,6 @@ Filter::Filter(Iterator *input, Condition &condition) {
 
     currentTuple = malloc(PAGE_SIZE);
 
-    //get tableName from relation
-    //input->getTableNameFromRelAttr(this->tableName, relAttrs);
-
     for (const Attribute& attr : relAttrs) {
         if (attr.name == targetAttrName) {
             this->targetAttribute = attr;
@@ -36,7 +33,7 @@ RC Filter::getNextTuple(void *data) {
     while (rc != QE_EOF) {
         rc = input->getNextTuple(currentTuple);
         // break when satisfied tuple
-        if (isTupleSatisfied()) {
+        if (rc == QE_EOF || isTupleSatisfied()) {
             break;
         }
     }
@@ -51,20 +48,13 @@ RC Filter::getNextTuple(void *data) {
 }
 
 bool Filter::isTupleSatisfied() {
-
-    unsigned short size = relAttrs.size();
-    unsigned short pos = 0;
-
-    int *attrsExist = new int[size];
-
-    RecordBasedFileManager::getAttrExistArray(pos, attrsExist, currentTuple, size, false);
-
     // get data from tuple
     void* data = malloc(PAGE_SIZE);
     RecordBasedFileManager::readAttributeFromRawData(currentTuple, data, relAttrs, "", targetAttrIndex);
 
     bool res = RecordBasedFileManager::compareValue(rhsValue.data, data, op, targetAttribute.type);
 
+    free(data);
     return res;
 }
 

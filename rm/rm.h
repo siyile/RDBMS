@@ -31,7 +31,7 @@ class RM_ScanIterator {
 public:
     RM_ScanIterator();
 
-    ~RM_ScanIterator() = default;
+    ~RM_ScanIterator();
 
     RBFM_ScanIterator rbfmsi;
     FileHandle fileHandle;

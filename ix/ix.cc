@@ -1326,15 +1326,15 @@ RC IXFileHandle::appendPage(const void *data) {
 void IXFileHandle::_readRootPageNum() {
     void* data = malloc(PAGE_SIZE);
     readPage(0, data);
-    unsigned pageNum;
-    memcpy(&pageNum, data, UNSIGNED_SIZE);
+    memcpy(&rootPageNum, data, UNSIGNED_SIZE);
     free(data);
-    rootPageNum = pageNum;
 }
 
 void IXFileHandle::_writeRootPageNum() {
-    fileHandle.fs.seekp(UNSIGNED_SIZE * 3, std::ios::beg);
-    fileHandle.fs.write(reinterpret_cast<char *>(&rootPageNum), UNSIGNED_SIZE);
+    void* data = malloc(PAGE_SIZE);
+    memcpy(data, &rootPageNum, UNSIGNED_SIZE);
+    fileHandle.writePage(0, data);
+    free(data);
 }
 
 bool IXFileHandle::isOpen() {
