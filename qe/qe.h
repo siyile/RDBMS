@@ -267,7 +267,7 @@ public:
             //   i.e., memory block size (decided by the optimizer)
     );
 
-    ~BNLJoin() override = default;;
+    ~BNLJoin() override;
 
     RC getNextTuple(void *data) override;
 

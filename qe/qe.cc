@@ -144,6 +144,8 @@ RC Project::getNextTuple(void *data) {
         RecordBasedFileManager::setNullIndicator(nullIndicator, i, 0);
     }
     memcpy(data, nullIndicator, nullIndicatorSize);
+    delete [] attrsExist;
+    delete [] nullIndicator;
     return 0;
 }
 
@@ -274,6 +276,12 @@ BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &conditio
 
 }
 
+BNLJoin::~BNLJoin() {
+    clean();
+    free(tuple1);
+}
+
+
 RC BNLJoin::getNextTuple(void *data) {
     void* key = malloc(PAGE_SIZE);
     // outBuffer is empty, need to get something in it.
@@ -378,7 +386,6 @@ void BNLJoin::clean() {
     }
     stringMap.clear();
 }
-
 
 void Iterator::getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> const &attrs, const std::string &attrName,
                                          unsigned index, unsigned short &length, void *data) {
@@ -538,14 +545,6 @@ GHJoin::GHJoin(Iterator *leftIn, Iterator *rightIn, const Condition &condition, 
 GHJoin::~GHJoin() {
     free(tuple1);
     clean();
-
-    for (const auto & it : leftPartitionNames) {
-        rbfm->destroyFile(it);
-    }
-
-    for (const auto & it : rightPartitionNames) {
-        rbfm->destroyFile(it);
-    }
 }
 
 RC GHJoin::getNextTuple(void *data) {
@@ -615,6 +614,13 @@ RC GHJoin::getNextTuple(void *data) {
     free(key);
     if (outBuffer.empty()) {
         clean();
+        for (const auto & it : leftPartitionNames) {
+            rbfm->destroyFile(it);
+        }
+
+        for (const auto & it : rightPartitionNames) {
+            rbfm->destroyFile(it);
+        }
         return QE_EOF;
     } else {
         void* tuple = outBuffer.top();
@@ -855,6 +861,8 @@ Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, const Attribute 
         aggregations.push_back(vector);
         groups.push_back(it.first);
     }
+
+    free(currentTuple);
 }
 
 RC Aggregate::getNextTupleGroupBy(void *data) {
