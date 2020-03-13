@@ -710,3 +710,474 @@ void GHJoin::clean() {
     }
     stringMap.clear();
 }
+
+Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, AggregateOp op) {
+    this->aggAttr =aggAttr;
+    this->op = op;
+    this->input = input;
+    this->maxValue = MIN_FLOAT;
+    this->minValue = MAX_FLOAT;
+    this->totalCount = 0;
+    this->groupAttr = aggAttr;
+    this->aggAttrNameVector.push_back(aggAttr.name);
+    this->aggAttrVector.push_back(aggAttr);
+    this->proj = new Project(input, aggAttrNameVector);
+}
+
+RC Aggregate::getNextTuple(void *data) {
+
+    if(groupAttr.name != aggAttr.name) {
+        return getNextTupleGroupBy(data);
+    }
+
+    int rc = proj->getNextTuple(currentTuple);
+
+    if (rc == QE_EOF) {
+        return QE_EOF;
+    }
+
+    float dataValue;
+    memcpy(&dataValue, currentTuple, UNSIGNED_SIZE);
+
+    totalCount++;
+    minValue = dataValue < minValue ? dataValue : minValue;
+    maxValue = dataValue > maxValue ? dataValue : maxValue;
+    valueSum += dataValue;
+    valueAvg = valueSum / totalCount;
+
+    switch (op) {
+        case MAX:
+            memcpy(data, &maxValue, UNSIGNED_SIZE);
+            break;
+        case MIN:
+            memcpy(data, &minValue, UNSIGNED_SIZE);
+            break;
+        case COUNT:
+            memcpy(data, &totalCount, UNSIGNED_SIZE);
+            break;
+        case SUM:
+            memcpy(data, &valueSum, UNSIGNED_SIZE);
+            break;
+        case AVG:
+            memcpy(data, &valueAvg, UNSIGNED_SIZE);
+            break;
+    }
+
+    return 0;
+}
+
+//group by
+Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, const Attribute &groupAttr, AggregateOp op) {
+    this->groupAttr = groupAttr;
+    this->aggAttr =aggAttr;
+    this->op = op;
+    this->input = input;
+    this->maxValue = MIN_FLOAT;
+    this->minValue = MAX_FLOAT;
+    this->totalCount = 0;
+    this->aggAttrNameVector.push_back(aggAttr.name);
+    this->aggAttrNameVector.push_back(groupAttr.name);
+    this->aggAttrVector.push_back(aggAttr);
+    this->aggAttrVector.push_back(groupAttr);
+    this->proj = new Project(input, aggAttrNameVector);
+}
+
+RC Aggregate::getNextTupleGroupBy(void *data) {
+
+    int rc = proj->getNextTuple(currentTuple);
+
+    if (rc == QE_EOF) {
+        return QE_EOF;
+    }
+
+    std::string currentGroupByVarCharValue;
+    unsigned currentGroupByVarCharValueLength;
+    unsigned currentGroupByIntValue;
+    unsigned currentGroupByRealValue;
+
+    if (groupAttr.type == TypeVarChar) {
+        std::string groupByValue;
+        unsigned length;
+        memcpy(&length, currentTuple, UNSIGNED_SIZE);
+        memcpy(&groupByValue, (char*) currentTuple + UNSIGNED_SIZE, length);
+        float dataValue;
+        memcpy(&dataValue, (char*) currentTuple + UNSIGNED_SIZE + length, UNSIGNED_SIZE);
+        currentGroupByVarCharValue = groupByValue;
+        currentGroupByVarCharValueLength = length;
+
+        if(groupByVarCharAttrValue.find(groupByValue) == groupByVarCharAttrValue.end()) {
+            groupByVarCharAttrValue.insert(groupByValue);
+            groupByVarCharAttrTotalCount[groupByValue] = 1;
+            groupByVarCharAttrMinValue[groupByValue] = dataValue;
+            groupByVarCharAttrMaxValue[groupByValue] = dataValue;
+            groupByVarCharAttrValueSum[groupByValue] = dataValue;
+            groupByVarCharAttrValueAvg[groupByValue] = dataValue;
+        } else{
+            groupByVarCharAttrTotalCount[groupByValue]++;
+            groupByVarCharAttrMinValue[groupByValue] =
+                        dataValue < groupByVarCharAttrMinValue[groupByValue] ? dataValue
+                                                                             : groupByVarCharAttrMinValue[groupByValue];
+            groupByVarCharAttrMaxValue[groupByValue] =
+                        dataValue > groupByVarCharAttrMaxValue[groupByValue] ? dataValue
+                                                                             : groupByVarCharAttrMaxValue[groupByValue];
+            groupByVarCharAttrValueSum[groupByValue] += dataValue;
+            groupByVarCharAttrValueAvg[groupByValue] = groupByVarCharAttrValueSum[groupByValue] / groupByVarCharAttrTotalCount[groupByValue];
+        }
+    } else if (groupAttr.type == TypeInt) {
+        unsigned groupByValue;
+        memcpy(&groupByValue, currentTuple, UNSIGNED_SIZE);
+        float dataValue;
+        memcpy(&dataValue, (char*) currentTuple + UNSIGNED_SIZE, UNSIGNED_SIZE);
+        currentGroupByIntValue = groupByValue;
+
+        if(groupByIntAttrValue.find(groupByValue) == groupByIntAttrValue.end()) {
+            groupByIntAttrValue.insert(groupByValue);
+            groupByIntAttrTotalCount[groupByValue] = 1;
+            groupByIntAttrMinValue[groupByValue] = dataValue;
+            groupByIntAttrMaxValue[groupByValue] = dataValue;
+            groupByIntAttrValueSum[groupByValue] = dataValue;
+            groupByIntAttrValueAvg[groupByValue] = dataValue;
+        } else {
+            groupByIntAttrTotalCount[groupByValue]++;
+            groupByIntAttrMinValue[groupByValue] = dataValue < groupByIntAttrMinValue[groupByValue] ? dataValue
+                                                                                                    : groupByIntAttrMinValue[groupByValue];
+            groupByIntAttrMaxValue[groupByValue] = dataValue > groupByIntAttrMaxValue[groupByValue] ? dataValue
+                                                                                                    : groupByIntAttrMaxValue[groupByValue];
+            groupByIntAttrValueSum[groupByValue] += dataValue;
+            groupByIntAttrValueAvg[groupByValue] =
+                    groupByIntAttrValueSum[groupByValue] / groupByIntAttrTotalCount[groupByValue];
+        }
+    } else {
+        unsigned groupByValue;
+        memcpy(&groupByValue, currentTuple, UNSIGNED_SIZE);
+        float dataValue;
+        memcpy(&dataValue, (char*) currentTuple + UNSIGNED_SIZE, UNSIGNED_SIZE);
+        currentGroupByRealValue = groupByValue;
+        if(groupByRealAttrValue.find(groupByValue) == groupByRealAttrValue.end()) {
+            groupByRealAttrValue.insert(groupByValue);
+            groupByRealAttrTotalCount[groupByValue] = 1;
+            groupByRealAttrMinValue[groupByValue] = dataValue;
+            groupByRealAttrMaxValue[groupByValue] = dataValue;
+            groupByRealAttrValueSum[groupByValue] = dataValue;
+            groupByRealAttrValueAvg[groupByValue] = dataValue;
+        } else {
+            groupByRealAttrTotalCount[groupByValue]++;
+            groupByRealAttrMinValue[groupByValue] =
+                    dataValue < groupByRealAttrMinValue[groupByValue] ? dataValue
+                                                                      : groupByRealAttrMinValue[groupByValue];
+            groupByRealAttrMaxValue[groupByValue] =
+                    dataValue > groupByRealAttrMaxValue[groupByValue] ? dataValue
+                                                                      : groupByRealAttrMaxValue[groupByValue];
+            groupByRealAttrValueSum[groupByValue] += dataValue;
+            groupByRealAttrValueAvg[groupByValue] =
+                    groupByRealAttrValueSum[groupByValue] / groupByRealAttrTotalCount[groupByValue];
+        }
+    }
+
+    unsigned pos = UNSIGNED_SIZE;
+
+    switch (op) {
+        case MAX:
+            if (groupAttr.type == TypeVarChar) {
+                memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+                pos += currentGroupByVarCharValueLength;
+                memcpy((char*)data + pos, &groupByVarCharAttrMaxValue[currentGroupByVarCharValue], UNSIGNED_SIZE);
+            } else if (groupAttr.type == TypeInt) {
+                memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByIntAttrMaxValue[currentGroupByIntValue], UNSIGNED_SIZE);
+            } else {
+                memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByRealAttrMaxValue[currentGroupByRealValue], UNSIGNED_SIZE);
+            }
+            break;
+        case MIN:
+            if (groupAttr.type == TypeVarChar) {
+                memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+                pos += currentGroupByVarCharValueLength;
+                memcpy((char*)data + pos, &groupByVarCharAttrMinValue[currentGroupByVarCharValue], UNSIGNED_SIZE);
+            } else if (groupAttr.type == TypeInt) {
+                memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByIntAttrMinValue[currentGroupByIntValue], UNSIGNED_SIZE);
+            } else {
+                memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByRealAttrMinValue[currentGroupByRealValue], UNSIGNED_SIZE);
+            }
+            break;
+        case COUNT:
+            if (groupAttr.type == TypeVarChar) {
+                memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+                pos += currentGroupByVarCharValueLength;
+                memcpy((char*)data + pos, &groupByVarCharAttrTotalCount[currentGroupByVarCharValue], UNSIGNED_SIZE);
+            } else if (groupAttr.type == TypeInt) {
+                memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByIntAttrTotalCount[currentGroupByIntValue], UNSIGNED_SIZE);
+            } else {
+                memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByRealAttrTotalCount[currentGroupByRealValue], UNSIGNED_SIZE);
+            }
+            break;
+        case SUM:
+            if (groupAttr.type == TypeVarChar) {
+                memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+                pos += currentGroupByVarCharValueLength;
+                memcpy((char*)data + pos, &groupByVarCharAttrValueSum[currentGroupByVarCharValue], UNSIGNED_SIZE);
+            } else if (groupAttr.type == TypeInt) {
+                memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByIntAttrValueSum[currentGroupByIntValue], UNSIGNED_SIZE);
+            } else {
+                memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByRealAttrValueSum[currentGroupByRealValue], UNSIGNED_SIZE);
+            }
+            break;
+        case AVG:
+            if (groupAttr.type == TypeVarChar) {
+                memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+                pos += currentGroupByVarCharValueLength;
+                memcpy((char*)data + pos, &groupByVarCharAttrValueAvg[currentGroupByVarCharValue], UNSIGNED_SIZE);
+            } else if (groupAttr.type == TypeInt) {
+                memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByIntAttrValueAvg[currentGroupByIntValue], UNSIGNED_SIZE);
+            } else {
+                memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+                memcpy((char*)data + pos, &groupByRealAttrValueAvg[currentGroupByRealValue], UNSIGNED_SIZE);
+            }
+            break;
+    }
+
+
+//    while(proj->getNextTuple(currentTuple) != QE_EOF) {
+//
+//        if (groupAttr.type == TypeVarChar) {
+//            std::string groupByValue;
+//            unsigned length;
+//            memcpy(&length, currentTuple, UNSIGNED_SIZE);
+//            memcpy(&groupByValue, (char *) currentTuple + UNSIGNED_SIZE, length);
+//            float dataValue;
+//            memcpy(&dataValue, (char *) currentTuple + UNSIGNED_SIZE + length, UNSIGNED_SIZE);
+//
+//            if (groupByVarCharAttrValue.find(groupByValue) == groupByVarCharAttrValue.end()) {
+//                groupByVarCharAttrValue.insert(groupByValue);
+//                currentGroupByVarCharValue = groupByValue;
+//                currentGroupByVarCharValueLength = length;
+//
+//                groupByVarCharAttrTotalCount[groupByValue] = 1;
+//                groupByVarCharAttrMinValue[groupByValue] = dataValue;
+//                groupByVarCharAttrMaxValue[groupByValue] = dataValue;
+//                groupByVarCharAttrValueSum[groupByValue] = dataValue;
+//                groupByVarCharAttrValueAvg[groupByValue] = dataValue;
+//
+//                break;
+//            }
+//        } else if (groupAttr.type == TypeInt) {
+//            unsigned groupByValue;
+//            memcpy(&groupByValue, currentTuple, UNSIGNED_SIZE);
+//            float dataValue;
+//            memcpy(&dataValue, (char *) currentTuple + UNSIGNED_SIZE, UNSIGNED_SIZE);
+//            if (groupByIntAttrValue.find(groupByValue) == groupByIntAttrValue.end()) {
+//                groupByIntAttrValue.insert(groupByValue);
+//                currentGroupByIntValue = groupByValue;
+//
+//                groupByIntAttrTotalCount[groupByValue] = 1;
+//                groupByIntAttrMinValue[groupByValue] = dataValue;
+//                groupByIntAttrMaxValue[groupByValue] = dataValue;
+//                groupByIntAttrValueSum[groupByValue] = dataValue;
+//                groupByIntAttrValueAvg[groupByValue] = dataValue;
+//
+//                break;
+//            }
+//
+//        } else {
+//            unsigned groupByValue;
+//            memcpy(&groupByValue, currentTuple, UNSIGNED_SIZE);
+//            float dataValue;
+//            memcpy(&dataValue, (char *) currentTuple + UNSIGNED_SIZE, UNSIGNED_SIZE);
+//            if (groupByRealAttrValue.find(groupByValue) == groupByRealAttrValue.end()) {
+//                groupByRealAttrValue.insert(groupByValue);
+//                currentGroupByRealValue = groupByValue;
+//                groupByRealAttrTotalCount[groupByValue] = 1;
+//                groupByRealAttrMinValue[groupByValue] = dataValue;
+//                groupByRealAttrMaxValue[groupByValue] = dataValue;
+//                groupByRealAttrValueSum[groupByValue] = dataValue;
+//                groupByRealAttrValueAvg[groupByValue] = dataValue;
+//            }
+//        }
+//    }
+//
+//        while(proj->getNextTuple(currentTuple) != QE_EOF) {
+//
+//            if (groupAttr.type == TypeVarChar) {
+//                std::string groupByValue;
+//                unsigned length;
+//                memcpy(&length, currentTuple, UNSIGNED_SIZE);
+//                memcpy(&groupByValue, (char *) currentTuple + UNSIGNED_SIZE, length);
+//                float dataValue;
+//                memcpy(&dataValue, (char *) currentTuple + UNSIGNED_SIZE + length, UNSIGNED_SIZE);
+//
+//                if (groupByValue == currentGroupByVarCharValue) {
+//                    groupByVarCharAttrTotalCount[groupByValue]++;
+//                    groupByVarCharAttrMinValue[groupByValue] =
+//                            dataValue < groupByVarCharAttrMinValue[groupByValue] ? dataValue
+//                                                                                 : groupByVarCharAttrMinValue[groupByValue];
+//                    groupByVarCharAttrMaxValue[groupByValue] =
+//                            dataValue > groupByVarCharAttrMaxValue[groupByValue] ? dataValue
+//                                                                                 : groupByVarCharAttrMaxValue[groupByValue];
+//                    groupByVarCharAttrValueSum[groupByValue] += dataValue;
+//                    groupByVarCharAttrValueAvg[groupByValue] =
+//                            groupByVarCharAttrValueSum[groupByValue] / groupByVarCharAttrTotalCount[groupByValue];
+//
+//                }
+//            } else if (groupAttr.type == TypeInt) {
+//                unsigned groupByValue;
+//                memcpy(&groupByValue, currentTuple, UNSIGNED_SIZE);
+//                float dataValue;
+//                memcpy(&dataValue, (char *) currentTuple + UNSIGNED_SIZE, UNSIGNED_SIZE);
+//
+//                if (groupByValue == currentGroupByIntValue) {
+//                    groupByIntAttrTotalCount[groupByValue]++;
+//                    groupByIntAttrMinValue[groupByValue] = dataValue < groupByIntAttrMinValue[groupByValue] ? dataValue
+//                                                                                                            : groupByIntAttrMinValue[groupByValue];
+//                    groupByIntAttrMaxValue[groupByValue] = dataValue > groupByIntAttrMaxValue[groupByValue] ? dataValue
+//                                                                                                            : groupByIntAttrMaxValue[groupByValue];
+//                    groupByIntAttrValueSum[groupByValue] += dataValue;
+//                    groupByIntAttrValueAvg[groupByValue] =
+//                            groupByIntAttrValueSum[groupByValue] / groupByIntAttrTotalCount[groupByValue];
+//                }
+//            } else {
+//                unsigned groupByValue;
+//                memcpy(&groupByValue, currentTuple, UNSIGNED_SIZE);
+//                float dataValue;
+//                memcpy(&dataValue, (char *) currentTuple + UNSIGNED_SIZE, UNSIGNED_SIZE);
+//
+//                if (groupByValue == currentGroupByRealValue) {
+//                    groupByRealAttrTotalCount[groupByValue]++;
+//                    groupByRealAttrMinValue[groupByValue] =
+//                            dataValue < groupByRealAttrMinValue[groupByValue] ? dataValue
+//                                                                              : groupByRealAttrMinValue[groupByValue];
+//                    groupByRealAttrMaxValue[groupByValue] =
+//                            dataValue > groupByRealAttrMaxValue[groupByValue] ? dataValue
+//                                                                              : groupByRealAttrMaxValue[groupByValue];
+//                    groupByRealAttrValueSum[groupByValue] += dataValue;
+//                    groupByRealAttrValueAvg[groupByValue] =
+//                            groupByRealAttrValueSum[groupByValue] / groupByRealAttrTotalCount[groupByValue];
+//                }
+//            }
+//        }
+
+//        unsigned pos = UNSIGNED_SIZE;
+//
+//        switch (op) {
+//            case MAX:
+//                if (groupAttr.type == TypeVarChar) {
+//                    memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+//                    pos += currentGroupByVarCharValueLength;
+//                    memcpy((char*)data + pos, &groupByVarCharAttrMaxValue[currentGroupByVarCharValue], UNSIGNED_SIZE);
+//                } else if (groupAttr.type == TypeInt) {
+//                    memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByIntAttrMaxValue[currentGroupByIntValue], UNSIGNED_SIZE);
+//                } else {
+//                    memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByRealAttrMaxValue[currentGroupByRealValue], UNSIGNED_SIZE);
+//                }
+//                break;
+//            case MIN:
+//                if (groupAttr.type == TypeVarChar) {
+//                    memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+//                    pos += currentGroupByVarCharValueLength;
+//                    memcpy((char*)data + pos, &groupByVarCharAttrMinValue[currentGroupByVarCharValue], UNSIGNED_SIZE);
+//                } else if (groupAttr.type == TypeInt) {
+//                    memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByIntAttrMinValue[currentGroupByIntValue], UNSIGNED_SIZE);
+//                } else {
+//                    memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByRealAttrMinValue[currentGroupByRealValue], UNSIGNED_SIZE);
+//                }
+//                break;
+//            case COUNT:
+//                if (groupAttr.type == TypeVarChar) {
+//                    memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+//                    pos += currentGroupByVarCharValueLength;
+//                    memcpy((char*)data + pos, &groupByVarCharAttrTotalCount[currentGroupByVarCharValue], UNSIGNED_SIZE);
+//                } else if (groupAttr.type == TypeInt) {
+//                    memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByIntAttrTotalCount[currentGroupByIntValue], UNSIGNED_SIZE);
+//                } else {
+//                    memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByRealAttrTotalCount[currentGroupByRealValue], UNSIGNED_SIZE);
+//                }
+//                break;
+//            case SUM:
+//                if (groupAttr.type == TypeVarChar) {
+//                    memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+//                    pos += currentGroupByVarCharValueLength;
+//                    memcpy((char*)data + pos, &groupByVarCharAttrValueSum[currentGroupByVarCharValue], UNSIGNED_SIZE);
+//                } else if (groupAttr.type == TypeInt) {
+//                    memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByIntAttrValueSum[currentGroupByIntValue], UNSIGNED_SIZE);
+//                } else {
+//                    memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByRealAttrValueSum[currentGroupByRealValue], UNSIGNED_SIZE);
+//                }
+//                break;
+//            case AVG:
+//                if (groupAttr.type == TypeVarChar) {
+//                    memcpy(data, &currentGroupByVarCharValueLength, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &currentGroupByVarCharValue, currentGroupByVarCharValueLength);
+//                    pos += currentGroupByVarCharValueLength;
+//                    memcpy((char*)data + pos, &groupByVarCharAttrValueAvg[currentGroupByVarCharValue], UNSIGNED_SIZE);
+//                } else if (groupAttr.type == TypeInt) {
+//                    memcpy(data, &currentGroupByIntValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByIntAttrValueAvg[currentGroupByIntValue], UNSIGNED_SIZE);
+//                } else {
+//                    memcpy(data, &currentGroupByRealValue, UNSIGNED_SIZE);
+//                    memcpy((char*)data + pos, &groupByRealAttrValueAvg[currentGroupByRealValue], UNSIGNED_SIZE);
+//                }
+//                break;
+//        }
+//    }
+//
+//    free(currentTuple);
+    return 0;
+}
+
+void Aggregate::getAttributes(std::vector<Attribute> &attrs) const {
+
+    std::string operatorString;
+    switch (op) {
+        case MIN:
+            operatorString = "MIN";
+            break;
+        case MAX:
+            operatorString = "MAX";
+            break;
+        case COUNT:
+            operatorString = "COUNT";
+            break;
+        case SUM:
+            operatorString = "SUM";
+            break;
+        case AVG:
+            operatorString = "AVG";
+            break;
+    }
+
+    for (auto const & it : aggAttrVector) {
+        Attribute tmpAttr = it;
+        std::string tmp =  operatorString;
+        tmp += "(";
+        tmp += tmpAttr.name;
+        tmp += ")";
+
+        tmpAttr.name = tmp;
+        attrs.push_back(tmpAttr);
+    }
+}
+

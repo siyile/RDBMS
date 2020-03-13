@@ -213,7 +213,6 @@ class Project : public Iterator {
 public:
     std::vector<Attribute> relAttrs;
     std::unordered_map<std::string, Attribute> attrNameToAttrMap;
-    //std::unordered_map<unsigned , Attribute> PositionToAttrMap;
     std::unordered_map<int, int> targetIndexToTupleIndexMap;
     std::unordered_map<int, int> tupleIndexToOffsetMap;
     std::vector<std::string> targetAttributesNames;
@@ -388,7 +387,46 @@ public:
     Aggregate(Iterator *input,          // Iterator of input R
               const Attribute &aggAttr,        // The attribute over which we are computing an aggregate
               AggregateOp op            // Aggregate operation
-    ) {};
+    );
+
+    Attribute aggAttr;
+    AggregateOp op;
+    Iterator *input;
+    std::vector<std::string> aggAttrNameVector;
+    std::vector<Attribute> aggAttrVector;
+
+    float minValue;
+    float maxValue;
+    unsigned totalCount;
+    float valueSum;
+    float valueAvg;
+
+    void *currentTuple;
+
+    std::unordered_set<std::string> groupByVarCharAttrValue;
+    std::unordered_set<unsigned > groupByIntAttrValue;
+    std::unordered_set<unsigned > groupByRealAttrValue;
+
+
+    std::unordered_map<std::string, unsigned> groupByVarCharAttrTotalCount;
+    std::unordered_map<std::string, float>groupByVarCharAttrMinValue;
+    std::unordered_map<std::string, float>groupByVarCharAttrMaxValue;
+    std::unordered_map<std::string, float>groupByVarCharAttrValueSum;
+    std::unordered_map<std::string, float>groupByVarCharAttrValueAvg;
+    std::unordered_map<unsigned , unsigned> groupByIntAttrTotalCount;
+    std::unordered_map<unsigned, float>groupByIntAttrMinValue;
+    std::unordered_map<unsigned, float>groupByIntAttrMaxValue;
+    std::unordered_map<unsigned, float>groupByIntAttrValueSum;
+    std::unordered_map<unsigned, float>groupByIntAttrValueAvg;
+    std::unordered_map<unsigned, unsigned> groupByRealAttrTotalCount;
+    std::unordered_map<unsigned, float>groupByRealAttrMinValue;
+    std::unordered_map<unsigned, float>groupByRealAttrMaxValue;
+    std::unordered_map<unsigned, float>groupByRealAttrValueSum;
+    std::unordered_map<unsigned, float>groupByRealAttrValueAvg;
+
+    Project *proj;
+
+    Attribute groupAttr;
 
     // Optional for everyone: 5 extra-credit points
     // Group-based hash aggregation
@@ -396,16 +434,18 @@ public:
               const Attribute &aggAttr,           // The attribute over which we are computing an aggregate
               const Attribute &groupAttr,         // The attribute over which we are grouping the tuples
               AggregateOp op              // Aggregate operation
-    ) {};
+    );
 
     ~Aggregate() = default;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data) override;
+
+    RC getNextTupleGroupBy(void *data);
 
     // Please name the output attribute as aggregateOp(aggAttr)
     // E.g. Relation=rel, attribute=attr, aggregateOp=MAX
     // output attrname = "MAX(rel.attr)"
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const override;
 };
 
 
