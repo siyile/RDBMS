@@ -353,7 +353,29 @@ public:
     float valueSum;
     float valueAvg;
 
+    std::unordered_set<std::string> groupByVarCharAttrValue;
+    std::unordered_set<unsigned > groupByIntAttrValue;
+    std::unordered_set<unsigned > groupByRealAttrValue;
+
+
+    std::unordered_map<std::string, unsigned> groupByVarCharAttrTotalCount;
+    std::unordered_map<std::string, float>groupByVarCharAttrMinValue;
+    std::unordered_map<std::string, float>groupByVarCharAttrMaxValue;
+    std::unordered_map<std::string, float>groupByVarCharAttrValueSum;
+    std::unordered_map<std::string, float>groupByVarCharAttrValueAvg;
+    std::unordered_map<unsigned , unsigned> groupByIntAttrTotalCount;
+    std::unordered_map<unsigned, float>groupByIntAttrMinValue;
+    std::unordered_map<unsigned, float>groupByIntAttrMaxValue;
+    std::unordered_map<unsigned, float>groupByIntAttrValueSum;
+    std::unordered_map<unsigned, float>groupByIntAttrValueAvg;
+    std::unordered_map<unsigned, unsigned> groupByRealAttrTotalCount;
+    std::unordered_map<unsigned, float>groupByRealAttrMinValue;
+    std::unordered_map<unsigned, float>groupByRealAttrMaxValue;
+    std::unordered_map<unsigned, float>groupByRealAttrValueSum;
+    std::unordered_map<unsigned, float>groupByRealAttrValueAvg;
     Project *proj;
+
+    Attribute groupAttr;
 
     // Optional for everyone: 5 extra-credit points
     // Group-based hash aggregation
@@ -361,11 +383,22 @@ public:
               const Attribute &aggAttr,           // The attribute over which we are computing an aggregate
               const Attribute &groupAttr,         // The attribute over which we are grouping the tuples
               AggregateOp op              // Aggregate operation
-    ) {};
+    ) {
+        this->groupAttr = groupAttr;
+        this->aggAttr =aggAttr;
+        this->op = op;
+        this->input = input;
+        this->maxValue = MIN_FLOAT;
+        this->minValue = MAX_FLOAT;
+        this->totalCount = 0;
+        this->aggAttrVector.push_back(aggAttr.name);
+    };
 
     ~Aggregate() = default;
 
     RC getNextTuple(void *data) override;
+
+    RC getNextTupleGroupBy(void *data);
 
     // Please name the output attribute as aggregateOp(aggAttr)
     // E.g. Relation=rel, attribute=attr, aggregateOp=MAX
