@@ -323,6 +323,7 @@ RC BNLJoin::getNextTuple(void *data) {
                     for (auto const & it : intMap[intKey]) {
                         outBuffer.push(it);
                     }
+                    intMap.erase(intKey);
                     foundRight = true;
                 }
             } else {
@@ -333,6 +334,7 @@ RC BNLJoin::getNextTuple(void *data) {
                     for (auto const & it : stringMap[stringKey]) {
                         outBuffer.push(it);
                     }
+                    stringMap.erase(stringKey);
                     foundRight = true;
                 }
             }
@@ -495,6 +497,9 @@ void INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
 GHJoin::GHJoin(Iterator *leftIn, Iterator *rightIn, const Condition &condition, const unsigned numPartitions) {
     rbfm = &RecordBasedFileManager::instance();
 
+    leftIn->getAttributes(leftAttrs);
+    rightIn->getAttributes(rightAttrs);
+
     this->numPartitions = (int) numPartitions;
 
     std::string leftAttrName = condition.lhsAttr;
@@ -527,10 +532,10 @@ GHJoin::GHJoin(Iterator *leftIn, Iterator *rightIn, const Condition &condition, 
      * */
     // create file
     for (int i = 0; i < numPartitions; i++) {
-        leftPartitionNames.push_back(getFileName(i, true));
+        leftPartitionNames.push_back(getFileName(i, true, leftAttrName));
         rbfm->createFile(leftPartitionNames[i]);
 
-        rightPartitionNames.push_back(getFileName(i, false));
+        rightPartitionNames.push_back(getFileName(i, false, rightAttrName));
         rbfm->createFile(rightPartitionNames[i]);
     }
 
@@ -556,24 +561,27 @@ RC GHJoin::getNextTuple(void *data) {
     void *key = malloc(PAGE_SIZE);
     RID rid;
     bool foundRight = false;
-    while (!foundRight && outBuffer.empty() && (nextpart != numPartitions || rrc != QE_EOF)) {
+    while (!foundRight && outBuffer.empty() && (nextpart != numPartitions || rrc != RBFM_EOF)) {
         // right end, scan left next & right next
-        if (rrc == QE_EOF) {
+        if (rrc == RBFM_EOF) {
             clean();
             RBFM_ScanIterator rbfmsi;
             FileHandle fileHandle;
-            rbfm->openFile(getFileName(nextpart, true), fileHandle);
+            rbfm->openFile(getFileName(nextpart, true, leftAttr.name), fileHandle);
             rbfm->scan(fileHandle, leftAttrs, "", NO_OP, nullptr, leftAttrNames, rbfmsi);
             void *tuple = malloc(PAGE_SIZE);
             while (rbfmsi.getNextRecord(rid, tuple) != RBFM_EOF) {
                 RecordBasedFileManager::readAttributeFromRawData(tuple, key, leftAttrs, "", leftAttrIndex);
                 addTupleToHashMap(tuple, key, attrType, intMap, stringMap);
+                tuple = malloc(PAGE_SIZE);
             }
+            free(tuple);
             rbfmsi.close();
 
             // restart scan right
-            rbfm->openFile(getFileName(nextpart, false), rightFileHandle);
+            rbfm->openFile(getFileName(nextpart, false, rightAttr.name), rightFileHandle);
             rbfm->scan(rightFileHandle, rightAttrs, "", NO_OP, nullptr, rightAttrNames, rightRBFMSI);
+            rrc = 0;
 
             nextpart += 1;
         }
@@ -582,7 +590,7 @@ RC GHJoin::getNextTuple(void *data) {
         while (!foundRight) {
             RID rid1;
             rrc = rightRBFMSI.getNextRecord(rid1, tuple1);
-            if  (rrc == QE_EOF) {
+            if  (rrc == RBFM_EOF) {
                 rightRBFMSI.close();
                 break;
             }
@@ -595,6 +603,7 @@ RC GHJoin::getNextTuple(void *data) {
                     for (auto const & it : intMap[intKey]) {
                         outBuffer.push(it);
                     }
+                    intMap.erase(intKey);
                     foundRight = true;
                 }
             } else {
@@ -605,6 +614,7 @@ RC GHJoin::getNextTuple(void *data) {
                     for (auto const & it : stringMap[stringKey]) {
                         outBuffer.push(it);
                     }
+                    stringMap.erase(stringKey);
                     foundRight = true;
                 }
             }
@@ -634,25 +644,19 @@ void GHJoin::getAttributes(std::vector<Attribute> &attrs) const {
     }
 }
 
-std::string GHJoin::getFileName(int i, bool isLeft) {
+std::string GHJoin::getFileName(int i, bool isLeft, std::string &attrName) {
     std::ostringstream stringStream;
     if (isLeft) {
         stringStream << "left_join";
     } else {
         stringStream << "right_join";
     }
-    stringStream << i << ".pat";
+    stringStream << i << "_" << attrName << ".pat";
     return stringStream.str();
 }
 
 void GHJoin::scanThenAddToPartitionFile(Iterator *iter, const std::vector<std::string> &partitionFileNames,
                                         const std::vector<Attribute> &attributes, int attrIndex) {
-    // open all file
-    std::vector<FileHandle> fileHandles;
-    for (const auto & it : partitionFileNames) {
-        FileHandle fileHandle;
-        rbfm->openFile(it, fileHandle);
-    }
 
     void *tuple = malloc(PAGE_SIZE);
 
@@ -666,20 +670,30 @@ void GHJoin::scanThenAddToPartitionFile(Iterator *iter, const std::vector<std::s
         if (attrType != TypeVarChar) {
             int dataInt;
             memcpy(&dataInt, tuple, UNSIGNED_SIZE);
+            if (dataInt < 0) {
+                dataInt += 1;
+                dataInt *= -1;
+            }
             remainder = dataInt % numPartitions;
         } else {
             unsigned length;
             memcpy(&length, data, UNSIGNED_SIZE);
             std::string string ((char *) data + UNSIGNED_SIZE, length);
             int hashcode = str_hash(string);
+            if (hashcode < 0) {
+                hashcode += 1;
+                hashcode *= -1;
+            }
             remainder = hashcode % numPartitions;
         }
-        rbfm->insertRecord(fileHandles[remainder], attributes, tuple, rid);
+        FileHandle fileHandle;
+        rbfm->openFile(partitionFileNames[remainder], fileHandle);
+        rbfm->insertRecord(fileHandle, attributes, tuple, rid);
+        rbfm->closeFile(fileHandle);
     }
 
-    for (auto & it : fileHandles) {
-        rbfm->closeFile(it);
-    }
+    free(tuple);
+    free(data);
 }
 
 void GHJoin::clean() {

@@ -369,7 +369,7 @@ public:
     // For attribute in std::vector<Attribute>, name it as rel.attr
     void getAttributes(std::vector<Attribute> &attrs) const override;
 
-    static std::string getFileName(int i, bool isLeft);
+    static std::string getFileName(int i, bool isLeft, std::string &attrName);
 
     void scanThenAddToPartitionFile(Iterator *iter, const std::vector<std::string> &partitionFileNames,
                                     const std::vector<Attribute> &attributes, int attrIndex);
