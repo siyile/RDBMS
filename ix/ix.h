@@ -6,7 +6,6 @@
 #include <stack>
 
 #include "../rbf/rbfm.h"
-#include "../rbf/pfm.h"
 
 # define IX_EOF (-1)  // end of the index scan
 #define IX_INIT_FREE_SPACE 4087
@@ -29,7 +28,6 @@
 #define MAX_STRING "HIGH_STRING"
 #define NOT_VALID_UNSIGNED_SHORT_SIGNAL 65534
 #define NOT_VALID_UNSIGNED_SIGNAL 987654321
-#define UNSIGNED_SHORT_SIZE 2
 
 class IX_ScanIterator;
 
@@ -41,16 +39,16 @@ public:
     static IndexManager &instance();
 
     // Create an index file.
-    RC createFile(const std::string &fileName);
+     RC createFile(const std::string &fileName);
 
     // Delete an index file.
     RC destroyFile(const std::string &fileName);
 
     // Open an index and return an ixFileHandle.
-    RC openFile(const std::string &fileName, IXFileHandle &ixFileHandle);
+     RC openFile(const std::string &fileName, IXFileHandle &ixFileHandle);
 
     // Close an ixFileHandle for an index.
-    RC closeFile(IXFileHandle &ixFileHandle);
+     RC closeFile(IXFileHandle &ixFileHandle);
 
     // Insert an entry into the given index that is indicated by the given ixFileHandle.
     RC insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid);

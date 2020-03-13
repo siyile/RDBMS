@@ -17,10 +17,11 @@ PagedFileManager::PagedFileManager(const PagedFileManager &) = default;
 
 PagedFileManager &PagedFileManager::operator=(const PagedFileManager &) = default;
 
-inline bool exists_test (const std::string& name) {
+bool PagedFileManager::exists_test (const std::string& name) {
     struct stat buffer;
     return (stat (name.c_str(), &buffer) == 0);
 }
+
 RC PagedFileManager::createFile(const std::string &fileName) {
 
     if (exists_test(fileName)) {
