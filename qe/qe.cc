@@ -1,4 +1,5 @@
 
+#include <sstream>
 #include "qe.h"
 
 
@@ -217,6 +218,29 @@ void Iterator::concatenateTuple(void *data, void *left, void *right, std::vector
     memcpy((char *) data + pos, (char *) right + rightNullIndicatorSize, rightLength);
 }
 
+void Iterator::addTupleToHashMap(void *data, void *key, AttrType attrType,
+                                 std::unordered_map<int, std::vector<void *>> &intMap,
+                                 std::unordered_map<std::string, std::vector<void *>> &stringMap) {
+    if (attrType != TypeVarChar) {
+        int intKey;
+        memcpy(&intKey, key, INT_SIZE);
+        if (intMap.find(intKey) == intMap.end()) {
+            std::vector<void *> vector;
+            intMap[intKey] = vector;
+        }
+        intMap[intKey].push_back(data);
+    } else {
+        unsigned stringLength;
+        memcpy(&stringLength, key, UNSIGNED_SIZE);
+        std::string stringKey((char *) key + UNSIGNED_SIZE, stringLength);
+        if (stringMap.find(stringKey) == stringMap.end()) {
+            std::vector<void *> vector;
+            stringMap[stringKey] = vector;
+        }
+        stringMap[stringKey].push_back(data);
+    }
+}
+
 /*
  * 1. read tuple from leftIt, till the memory limit
  *      - hash the tuple by key : data
@@ -279,34 +303,8 @@ RC BNLJoin::getNextTuple(void *data) {
                 getLengthAndDataFromTuple(tuple, leftAttrs, "", leftAttrsIndex, tupleLength, key);
                 currentMemory += tupleLength;
 
-                // add to hashMap
-                void *tmpData = tuple;
-                if (leftAttr.type == TypeInt) {
-                    int intKey;
-                    memcpy(&intKey, key, INT_SIZE);
-                    if (intMap.find(intKey) == intMap.end()) {
-                        std::vector<void *> vector;
-                        intMap[intKey] = vector;
-                    }
-                    intMap[intKey].push_back(tmpData);
-                } else if (leftAttr.type == TypeReal) {
-                    float floatKey;
-                    memcpy(&floatKey, key, INT_SIZE);
-                    if (realMap.find(floatKey) == realMap.end()) {
-                        std::vector<void *> vector;
-                        realMap[floatKey] = vector;
-                    }
-                    realMap[floatKey].push_back(tmpData);
-                } else {
-                    unsigned stringLength;
-                    memcpy(&stringLength, key, UNSIGNED_SIZE);
-                    std::string stringKey((char *) key + UNSIGNED_SIZE, stringLength);
-                    if (stringMap.find(stringKey) == stringMap.end()) {
-                        std::vector<void *> vector;
-                        stringMap[stringKey] = vector;
-                    }
-                    stringMap[stringKey].push_back(tmpData);
-                }
+                // add key to hashMap
+                addTupleToHashMap(tuple, key, leftAttr.type, intMap, stringMap);
             }
         }
 
@@ -318,20 +316,11 @@ RC BNLJoin::getNextTuple(void *data) {
             }
             unsigned short tupleLength;
             getLengthAndDataFromTuple(tuple1, rightAttrs, "", rightAttrsIndex, tupleLength, key);
-            if (leftAttr.type == TypeInt) {
+            if (leftAttr.type != TypeVarChar) {
                 int intKey;
                 memcpy(&intKey, key, INT_SIZE);
                 if (intMap.find(intKey) != intMap.end()) {
                     for (auto const & it : intMap[intKey]) {
-                        outBuffer.push(it);
-                    }
-                    foundRight = true;
-                }
-            } else if (leftAttr.type == TypeReal) {
-                float floatKey;
-                memcpy(&floatKey, key, INT_SIZE);
-                if (realMap.find(floatKey) != realMap.end()) {
-                    for (auto const & it : realMap[floatKey]) {
                         outBuffer.push(it);
                     }
                     foundRight = true;
@@ -383,8 +372,17 @@ void BNLJoin::getAttributes(std::vector<Attribute> &attrs) const {
 }
 
 void BNLJoin::clean() {
+    for (auto & it : intMap) {
+        for (auto & it1 : it.second) {
+            free(it1);
+        }
+    }
     intMap.clear();
-    realMap.clear();
+    for (auto & it : stringMap) {
+        for (auto & it1 : it.second) {
+            free(it1);
+        }
+    }
     stringMap.clear();
 }
 
@@ -435,8 +433,8 @@ INLJoin::INLJoin(Iterator *leftIn, IndexScan *rightIn, const Condition &conditio
     lrc = 0;
     rrc = QE_EOF;
 
-    leftAttrsIndex = RecordBasedFileManager::getAttrIndex(leftAttrs, condition.lhsAttr);
-    rightAttrsIndex = RecordBasedFileManager::getAttrIndex(rightAttrs, condition.rhsAttr);
+    leftAttrIndex = RecordBasedFileManager::getAttrIndex(leftAttrs, condition.lhsAttr);
+    rightAttrIndex = RecordBasedFileManager::getAttrIndex(rightAttrs, condition.rhsAttr);
 
     tuple = malloc(PAGE_SIZE);
 }
@@ -453,7 +451,7 @@ RC INLJoin::getNextTuple(void *data) {
             if (lrc == QE_EOF) {
                 break;
             }
-            getLengthAndDataFromTuple(tuple, leftAttrs, "", leftAttrsIndex, _, key);
+            getLengthAndDataFromTuple(tuple, leftAttrs, "", leftAttrIndex, _, key);
 
             //reset rightIt
             rightIt->setIterator(key, key, true, true);
@@ -486,5 +484,215 @@ void INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
     for (auto const & it : rightAttrs) {
         attrs.push_back(it);
     }
+}
 
+/*
+ * 1. do the partition, write into file, using rbfm
+ * 2. using rbfm scan to read file, load all left tuple, then the right
+ * 3. output
+ *
+ * */
+GHJoin::GHJoin(Iterator *leftIn, Iterator *rightIn, const Condition &condition, const unsigned numPartitions) {
+    rbfm = &RecordBasedFileManager::instance();
+
+    this->numPartitions = (int) numPartitions;
+
+    std::string leftAttrName = condition.lhsAttr;
+    std::string rightAttrName = condition.rhsAttr;
+
+    leftAttrIndex = RecordBasedFileManager::getAttrIndex(leftAttrs, condition.lhsAttr);
+    rightAttrIndex = RecordBasedFileManager::getAttrIndex(rightAttrs, condition.rhsAttr);
+
+    for (auto const & it : leftAttrs) {
+        leftAttrNames.push_back(it.name);
+    }
+
+    for (auto const & it : rightAttrs) {
+        rightAttrNames.push_back(it.name);
+    }
+
+    leftAttr = leftAttrs[leftAttrIndex];
+    rightAttr = rightAttrs[rightAttrIndex];
+
+    attrType = leftAttr.type;
+
+    nextpart = 0;
+    lrc = 0;
+    rrc = RBFM_EOF;
+
+    tuple1 = malloc(PAGE_SIZE);
+
+    /*
+     * start partition in the following code
+     * */
+    // create file
+    for (int i = 0; i < numPartitions; i++) {
+        leftPartitionNames.push_back(getFileName(i, true));
+        rbfm->createFile(leftPartitionNames[i]);
+
+        rightPartitionNames.push_back(getFileName(i, false));
+        rbfm->createFile(rightPartitionNames[i]);
+    }
+
+    // partition
+    scanThenAddToPartitionFile(leftIn, leftPartitionNames, leftAttrs, leftAttrIndex);
+    scanThenAddToPartitionFile(rightIn, rightPartitionNames, rightAttrs, rightAttrIndex);
+}
+
+GHJoin::~GHJoin() {
+    free(tuple1);
+    clean();
+
+    for (const auto & it : leftPartitionNames) {
+        rbfm->destroyFile(it);
+    }
+
+    for (const auto & it : rightPartitionNames) {
+        rbfm->destroyFile(it);
+    }
+}
+
+RC GHJoin::getNextTuple(void *data) {
+    void *key = malloc(PAGE_SIZE);
+    RID rid;
+    bool foundRight = false;
+    while (!foundRight && outBuffer.empty() && (nextpart != numPartitions || rrc != QE_EOF)) {
+        // right end, scan left next & right next
+        if (rrc == QE_EOF) {
+            clean();
+            RBFM_ScanIterator rbfmsi;
+            FileHandle fileHandle;
+            rbfm->openFile(getFileName(nextpart, true), fileHandle);
+            rbfm->scan(fileHandle, leftAttrs, "", NO_OP, nullptr, leftAttrNames, rbfmsi);
+            void *tuple = malloc(PAGE_SIZE);
+            while (rbfmsi.getNextRecord(rid, tuple) != RBFM_EOF) {
+                RecordBasedFileManager::readAttributeFromRawData(tuple, key, leftAttrs, "", leftAttrIndex);
+                addTupleToHashMap(tuple, key, attrType, intMap, stringMap);
+            }
+            rbfmsi.close();
+
+            // restart scan right
+            rbfm->openFile(getFileName(nextpart, false), rightFileHandle);
+            rbfm->scan(rightFileHandle, rightAttrs, "", NO_OP, nullptr, rightAttrNames, rightRBFMSI);
+
+            nextpart += 1;
+        }
+
+        // search in right part
+        while (!foundRight) {
+            RID rid1;
+            rrc = rightRBFMSI.getNextRecord(rid1, tuple1);
+            if  (rrc == QE_EOF) {
+                rightRBFMSI.close();
+                break;
+            }
+
+            RecordBasedFileManager::readAttributeFromRawData(tuple1, key, rightAttrs, "", rightAttrIndex);
+            if (attrType != TypeVarChar) {
+                int intKey;
+                memcpy(&intKey, key, INT_SIZE);
+                if (intMap.find(intKey) != intMap.end()) {
+                    for (auto const & it : intMap[intKey]) {
+                        outBuffer.push(it);
+                    }
+                    foundRight = true;
+                }
+            } else {
+                unsigned stringLength;
+                memcpy(&stringLength, key, UNSIGNED_SIZE);
+                std::string stringKey ((char *) key + UNSIGNED_SIZE, stringLength);
+                if (stringMap.find(stringKey) != stringMap.end()) {
+                    for (auto const & it : stringMap[stringKey]) {
+                        outBuffer.push(it);
+                    }
+                    foundRight = true;
+                }
+            }
+        }
+    }
+
+    free(key);
+    if (outBuffer.empty()) {
+        clean();
+        return QE_EOF;
+    } else {
+        void* tuple = outBuffer.top();
+        outBuffer.pop();
+        concatenateTuple(data, tuple, tuple1, leftAttrs, rightAttrs);
+        free(tuple);
+        return 0;
+    }
+}
+
+void GHJoin::getAttributes(std::vector<Attribute> &attrs) const {
+    for (auto const & it : leftAttrs) {
+        attrs.push_back(it);
+    }
+
+    for (auto const & it : rightAttrs) {
+        attrs.push_back(it);
+    }
+}
+
+std::string GHJoin::getFileName(int i, bool isLeft) {
+    std::ostringstream stringStream;
+    if (isLeft) {
+        stringStream << "left_join";
+    } else {
+        stringStream << "right_join";
+    }
+    stringStream << i << ".pat";
+    return stringStream.str();
+}
+
+void GHJoin::scanThenAddToPartitionFile(Iterator *iter, const std::vector<std::string> &partitionFileNames,
+                                        const std::vector<Attribute> &attributes, int attrIndex) {
+    // open all file
+    std::vector<FileHandle> fileHandles;
+    for (const auto & it : partitionFileNames) {
+        FileHandle fileHandle;
+        rbfm->openFile(it, fileHandle);
+    }
+
+    void *tuple = malloc(PAGE_SIZE);
+
+    std::hash<std::string> str_hash;
+
+    RID rid;
+    void *data = malloc(PAGE_SIZE);
+    while (iter->getNextTuple(tuple) != RM_EOF) {
+        RecordBasedFileManager::readAttributeFromRawData(tuple, data, attributes, "", attrIndex);
+        int remainder;
+        if (attrType != TypeVarChar) {
+            int dataInt;
+            memcpy(&dataInt, tuple, UNSIGNED_SIZE);
+            remainder = dataInt % numPartitions;
+        } else {
+            unsigned length;
+            memcpy(&length, data, UNSIGNED_SIZE);
+            std::string string ((char *) data + UNSIGNED_SIZE, length);
+            int hashcode = str_hash(string);
+            remainder = hashcode % numPartitions;
+        }
+        rbfm->insertRecord(fileHandles[remainder], attributes, tuple, rid);
+    }
+
+    for (auto & it : fileHandles) {
+        rbfm->closeFile(it);
+    }
+}
+
+void GHJoin::clean() {
+    for (auto & it : intMap) {
+        for (auto & it1 : it.second) {
+            free(it1);
+        }
+    }
+    intMap.clear();
+    for (auto & it : stringMap) {
+        for (auto & it1 : it.second) {
+            free(it1);
+        }
+    }
+    stringMap.clear();
 }
