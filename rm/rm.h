@@ -4,8 +4,8 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
-#include "../rbf/rbfm.h"
 #include "../ix/ix.h"
 
 # define RM_EOF (-1)  // end of a scan operator
@@ -24,13 +24,7 @@
 #define COLUMNS_ATTRIBUTE_SIZE 5
 #define SYSTEM_INDICATOR_SIZE 4
 
-typedef enum {
-    INSERT = 0,
-    DELETE,
-    UPDATE,
-    PRINT,
-} RBFM_OP;
-
+class RelationManager;
 
 // RM_ScanIterator is an iterator to go through tuples
 class RM_ScanIterator {
@@ -50,7 +44,7 @@ public:
 // RM_IndexScanIterator is an iterator to go through index entries
 class RM_IndexScanIterator {
 public:
-    RM_IndexScanIterator() {};    // Constructor
+    RM_IndexScanIterator();    // Constructor
     ~RM_IndexScanIterator() {};    // Destructor
 
     IX_ScanIterator ixsi;
@@ -59,6 +53,9 @@ public:
     // "key" follows the same format as in IndexManager::insertEntry()
     RC getNextEntry(RID &rid, void *key);    // Get next matching entry
     RC close();                        // Terminate index scan
+
+private:
+    IndexManager *im;
 };
 
 
@@ -88,11 +85,13 @@ public:
     // tableName -> vector<Attribute>
     std::unordered_map<std::string, std::vector<Attribute>> tableNameToAttrMap;
 
+    /*
+     * index related map
+     * */
     //tableName_attributeName ->index file name
     std::unordered_map<std::string, std::string> tNANToIndexFile;
-
     // tableName -> vector<Attribute Name>
-    std::unordered_map<std::string, std::vector<int>> indexMap;
+    std::unordered_map<std::string, std::unordered_set<int>> indexMap;
 
     static void appendAttr(std::vector<Attribute> &attrArr, std::string name, AttrType type, AttrLength len);
 
@@ -135,17 +134,17 @@ public:
             const std::vector<std::string> &attributeNames, // a list of projected attributes
             RM_ScanIterator &rm_ScanIterator);
 
-    static void generateTablesData(unsigned id, std::string tableName, std::string fileName, void *data,
+    static void generateTablesData(unsigned id, const std::string& tableName, std::string fileName, void *data,
                             bool isSystemTable);
 
     static void generateColumnsData(unsigned id, Attribute attr, unsigned position, void *data);
 
     void initScanTablesOrColumns(bool isTables);
 
-    void parseTablesData(void *data, std::string &tableName, std::string &fileName, unsigned int &id,
+    static void parseTablesData(void *data, std::string &tableName, std::string &fileName, unsigned int &id,
                          bool &isSystemTable);
 
-    void parseColumnsData(void *data, unsigned int &id, Attribute &attr, unsigned &position);
+    static void parseColumnsData(void *data, unsigned int &id, Attribute &attr, unsigned &position);
 
     // Extra credit work (10 points)
     RC addAttribute(const std::string &tableName, const Attribute &attr);
@@ -157,9 +156,7 @@ public:
 
     RC destroyIndex(const std::string &tableName, const std::string &attributeName);
 
-    static std::string getIndexNameHash(std::string tableName, std::string attrName);
-
-    void get_all(const fs::path& root, const string& ext, vector<fs::path>& ret);
+    static std::string getIndexNameHash(const std::string& tableName, const std::string& attrName);
 
     // indexScan returns an iterator to allow the caller to go through qualified entries in index
     RC indexScan(const std::string &tableName,
@@ -182,6 +179,7 @@ protected:
 private:
     RecordBasedFileManager *rbfm;
     IndexManager *im;
+    PagedFileManager *pfm;
     static RelationManager *_relation_manager;
 };
 

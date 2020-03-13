@@ -6,7 +6,6 @@
 #include <stack>
 
 #include "../rbf/rbfm.h"
-#include "../rbf/pfm.h"
 
 # define IX_EOF (-1)  // end of the index scan
 #define IX_INIT_FREE_SPACE 4087

@@ -1,9 +1,7 @@
 #ifndef _qe_h_
 #define _qe_h_
 
-#include "../rbf/rbfm.h"
 #include "../rm/rm.h"
-#include "../ix/ix.h"
 
 #define QE_EOF (-1)  // end of the index scan
 
@@ -28,9 +26,6 @@ struct Condition {
     std::string rhsAttr;        // right-hand side attribute if bRhsIsAttr = TRUE
     Value rhsValue;             // right-hand side value if bRhsIsAttr = FALSE
 };
-
-std::unordered_map<std::string, std::string> tNANToIndexFile;
-
 
 class Iterator {
     // All the relational operators and access methods are iterators.
@@ -184,6 +179,7 @@ public:
     std::string targetAttrName;
     Attribute targetAttribute;
     int targetAttrIndex;
+    int rc = 0;
 
     std::string lhsAttr;        // left-hand side attribute
     CompOp op;                  // comparison operator
@@ -200,7 +196,7 @@ public:
     );
     bool isTupleSatisfied();
 
-    ~Filter() override {};
+    ~Filter() override;
 
     RC getNextTuple(void *data) override;
 
@@ -224,7 +220,7 @@ public:
 
     Project(Iterator *input,                    // Iterator of input R
             const std::vector<std::string> &attrNames);   // std::vector containing attribute names
-    ~Project() override = default;
+    ~Project() override;
 
     RC getNextTuple(void *data) override;
 
@@ -277,6 +273,9 @@ public:
     void getAttributes(std::vector<Attribute> &attrs) const override;
 
     void clean();
+
+private:
+    RecordBasedFileManager *rbfm;
 };
 
 class INLJoin : public Iterator {
@@ -310,6 +309,9 @@ public:
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
     void getAttributes(std::vector<Attribute> &attrs) const override;
+
+private:
+    RecordBasedFileManager *rbfm;
 };
 
 // Optional for everyone. 10 extra-credit points

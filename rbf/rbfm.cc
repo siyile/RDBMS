@@ -1,7 +1,6 @@
 #include <vector>
 #include <cstring>
 #include "rbfm.h"
-#include <cmath>
 #include <iostream>
 #include <unordered_map>
 
@@ -890,7 +889,7 @@ void RecordBasedFileManager::readAttributeFromRawData(const void *data, void *re
 
 }
 
-int RecordBasedFileManager::getAttrIndex(const std::vector<Attribute> attrs, const std::string &attrName) {
+int RecordBasedFileManager::getAttrIndex(const std::vector<Attribute>& attrs, const std::string &attrName) {
     for (int i = 0; i < attrs.size(); i++) {
         if (attrs[i].name == attrName) {
             return i;

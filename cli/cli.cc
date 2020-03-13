@@ -19,6 +19,8 @@
 #define DIVISOR_LENGTH 5
 #define EXIT_CODE -99
 
+using namespace std;
+
 // DATABASE_FOLDER is given by makefile.inc file.
 // If your compiler complains about DATABASE_FOLDER, explicitly define DATABASE_FOLDER here
 // #define DATABASE_FOLDER "~/Users/yourpath..."
