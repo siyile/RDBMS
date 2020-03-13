@@ -705,8 +705,9 @@ Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, AggregateOp op) 
     this->minValue = MAX_FLOAT;
     this->totalCount = 0;
     this->groupAttr = aggAttr;
-    this->aggAttrVector.push_back(aggAttr.name);
-    this->proj = new Project(input, aggAttrVector);
+    this->aggAttrNameVector.push_back(aggAttr.name);
+    this->aggAttrVector.push_back(aggAttr);
+    this->proj = new Project(input, aggAttrNameVector);
 }
 
 RC Aggregate::getNextTuple(void *data) {
@@ -760,9 +761,11 @@ Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, const Attribute 
     this->maxValue = MIN_FLOAT;
     this->minValue = MAX_FLOAT;
     this->totalCount = 0;
-    this->aggAttrVector.push_back(aggAttr.name);
-    this->aggAttrVector.push_back(groupAttr.name);
-    this->proj = new Project(input, aggAttrVector);
+    this->aggAttrNameVector.push_back(aggAttr.name);
+    this->aggAttrNameVector.push_back(groupAttr.name);
+    this->aggAttrVector.push_back(aggAttr);
+    this->aggAttrVector.push_back(groupAttr);
+    this->proj = new Project(input, aggAttrNameVector);
 }
 
 RC Aggregate::getNextTupleGroupBy(void *data) {
@@ -1133,13 +1136,34 @@ RC Aggregate::getNextTupleGroupBy(void *data) {
 
 void Aggregate::getAttributes(std::vector<Attribute> &attrs) const {
 
-    Attribute targetAttr = this->aggAttr;
+    std::string operatorString;
+    switch (op) {
+        case MIN:
+            operatorString = "MIN";
+            break;
+        case MAX:
+            operatorString = "MAX";
+            break;
+        case COUNT:
+            operatorString = "COUNT";
+            break;
+        case SUM:
+            operatorString = "SUM";
+            break;
+        case AVG:
+            operatorString = "AVG";
+            break;
+    }
 
-    std::string targetAttrName;
-    targetAttrName = op + "(" + targetAttr.name + ")";
-    targetAttr.name = targetAttrName;
+    for (auto const & it : aggAttrVector) {
+        Attribute tmpAttr = it;
+        std::string tmp =  operatorString;
+        tmp += "(";
+        tmp += tmpAttr.name;
+        tmp += ")";
 
-    attrs.push_back(targetAttr);
-
+        tmpAttr.name = tmp;
+        attrs.push_back(tmpAttr);
+    }
 }
 

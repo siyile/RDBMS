@@ -392,7 +392,8 @@ public:
     Attribute aggAttr;
     AggregateOp op;
     Iterator *input;
-    std::vector<std::string> aggAttrVector;
+    std::vector<std::string> aggAttrNameVector;
+    std::vector<Attribute> aggAttrVector;
 
     float minValue;
     float maxValue;
