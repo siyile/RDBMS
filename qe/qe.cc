@@ -722,9 +722,9 @@ RC Aggregate::getNextTuple(void *data) {
     }
 
     void *currentTuple = malloc(PAGE_SIZE);
+    void* attrData = malloc(PAGE_SIZE);
 
     while (input->getNextTuple(currentTuple) != QE_EOF) {
-        void* attrData = malloc(PAGE_SIZE);
         RecordBasedFileManager::readAttributeFromRawData(currentTuple, attrData, attributes, "", aggrIndex);
 
         float dataValue = 0;
@@ -742,32 +742,34 @@ RC Aggregate::getNextTuple(void *data) {
         maxValue = dataValue > maxValue ? dataValue : maxValue;
         valueSum += dataValue;
         valueAvg = valueSum / totalCount;
-
-        int pos = 0;
-
-        unsigned char nullIndicator = 0x00;
-        memcpy((char *) data + pos, &nullIndicator, NULL_INDICATOR_UNIT_SIZE);
-        pos += nullIndicator;
-
-        switch (op) {
-            case MAX:
-                memcpy((char *) data + pos, &maxValue, UNSIGNED_SIZE);
-                break;
-            case MIN:
-                memcpy((char *) data + pos, &minValue, UNSIGNED_SIZE);
-                break;
-            case COUNT:
-                memcpy((char *) data + pos, &totalCount, UNSIGNED_SIZE);
-                break;
-            case SUM:
-                memcpy((char *) data + pos, &valueSum, UNSIGNED_SIZE);
-                break;
-            case AVG:
-                memcpy((char *) data + pos, &valueAvg, UNSIGNED_SIZE);
-                break;
-        }
     }
+
     free(currentTuple);
+    free(attrData);
+
+    int pos = 0;
+    unsigned char nullIndicator = 0x00;
+    memcpy((char *) data + pos, &nullIndicator, NULL_INDICATOR_UNIT_SIZE);
+    pos += NULL_INDICATOR_UNIT_SIZE;
+
+    switch (op) {
+        case MAX:
+            memcpy((char *) data + pos, &maxValue, UNSIGNED_SIZE);
+            break;
+        case MIN:
+            memcpy((char *) data + pos, &minValue, UNSIGNED_SIZE);
+            break;
+        case COUNT:
+            memcpy((char *) data + pos, &totalCount, UNSIGNED_SIZE);
+            break;
+        case SUM:
+            memcpy((char *) data + pos, &valueSum, UNSIGNED_SIZE);
+            break;
+        case AVG:
+            memcpy((char *) data + pos, &valueAvg, UNSIGNED_SIZE);
+            break;
+    }
+
     if (!endFlag) {
         endFlag = true;
         return 0;
@@ -863,14 +865,14 @@ RC Aggregate::getNextTupleGroupBy(void *data) {
 
     unsigned char nullIndicator = 0x00;
     memcpy((char *) data + pos, &nullIndicator, NULL_INDICATOR_UNIT_SIZE);
-    pos += nullIndicator;
+    pos += NULL_INDICATOR_UNIT_SIZE;
 
     // stringKey back to original
-    if (aggAttr.type == TypeInt) {
+    if (groupAttr.type == TypeInt) {
         int intKey = std::stoi(groups[outputIndex]);
         memcpy((char *) data + pos, &intKey, UNSIGNED_SIZE);
         pos += UNSIGNED_SIZE;
-    } else if (aggAttr.type == TypeReal) {
+    } else if (groupAttr.type == TypeReal) {
         float floatKey = std::stof(groups[outputIndex]);
         memcpy((char *) data + pos, &floatKey, UNSIGNED_SIZE);
         pos += UNSIGNED_SIZE;
