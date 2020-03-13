@@ -46,6 +46,10 @@ public:
     static void concatenateTuple(void *data, void *left, void *right, std::vector<Attribute> const &leftAttrs,
                                  std::vector<Attribute> const &rightAttrs);
 
+    static void addTupleToHashMap(void *data, void *key, AttrType attrType,
+                                  std::unordered_map<int, std::vector<void *>> &intMap,
+                                  std::unordered_map<std::string, std::vector<void *>> &stringMap);
+
 };
 
 class TableScan : public Iterator {
@@ -251,7 +255,6 @@ public:
     int rightAttrsIndex;
 
     std::unordered_map<int, std::vector<void *>> intMap;
-    std::unordered_map<float , std::vector<void *>> realMap;
     std::unordered_map<std::string, std::vector<void *>> stringMap;
 
     std::stack<void *> outBuffer;
@@ -289,8 +292,8 @@ public:
     std::vector<Attribute> leftAttrs;
     std::vector<Attribute> rightAttrs;
 
-    int leftAttrsIndex;
-    int rightAttrsIndex;
+    int leftAttrIndex;
+    int rightAttrIndex;
 
     int lrc;
     int rrc;
@@ -317,18 +320,63 @@ private:
 class GHJoin : public Iterator {
     // Grace hash join operator
 public:
+
+    int numPartitions;
+    std::vector<std::string> leftPartitionNames;
+    std::vector<std::string> rightPartitionNames;
+
+
+    int lrc;
+    int rrc;
+
+    int leftAttrIndex;
+    int rightAttrIndex;
+
+    // index
+    int nextpart;
+
+    std::unordered_map<int, std::vector<void *>> intMap;
+    std::unordered_map<std::string, std::vector<void *>> stringMap;
+
+    std::stack<void *> outBuffer;
+
+    std::vector<Attribute> leftAttrs;
+    std::vector<Attribute> rightAttrs;
+
+    std::vector<std::string> leftAttrNames;
+    std::vector<std::string> rightAttrNames;
+
+    Attribute leftAttr;
+    Attribute rightAttr;
+
+    FileHandle rightFileHandle;
+    RBFM_ScanIterator rightRBFMSI;
+    void* tuple1;
+
+    AttrType attrType;
+
     GHJoin(Iterator *leftIn,               // Iterator of input R
            Iterator *rightIn,               // Iterator of input S
            const Condition &condition,      // Join condition (CompOp is always EQ)
            const unsigned numPartitions     // # of partitions for each relation (decided by the optimizer)
-    ) {};
+    );
 
-    ~GHJoin() override = default;
+    ~GHJoin() override;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const override;
+
+    static std::string getFileName(int i, bool isLeft);
+
+    void scanThenAddToPartitionFile(Iterator *iter, const std::vector<std::string> &partitionFileNames,
+                                    const std::vector<Attribute> &attributes, int attrIndex);
+
+    void clean();
+
+private:
+    RecordBasedFileManager *rbfm;
 };
 
 class Aggregate : public Iterator {
