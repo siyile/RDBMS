@@ -392,39 +392,28 @@ public:
     Attribute aggAttr;
     AggregateOp op;
     Iterator *input;
-    std::vector<std::string> aggAttrNameVector;
-    std::vector<Attribute> aggAttrVector;
+
+    int aggrIndex;
+    int groupIndex;
+    std::vector<Attribute> attributes;
 
     float minValue;
     float maxValue;
-    unsigned totalCount;
+    float totalCount;
     float valueSum;
     float valueAvg;
 
-    void *currentTuple;
+    bool endFlag = false;
 
-    std::unordered_set<std::string> groupByVarCharAttrValue;
-    std::unordered_set<unsigned > groupByIntAttrValue;
-    std::unordered_set<unsigned > groupByRealAttrValue;
+    std::unordered_map<std::string, float> totalCountMap;
+    std::unordered_map<std::string, float> minMap;
+    std::unordered_map<std::string, float> maxMap;
+    std::unordered_map<std::string, float> sumMap;
+    std::unordered_map<std::string, float> avgMap;
 
-
-    std::unordered_map<std::string, unsigned> groupByVarCharAttrTotalCount;
-    std::unordered_map<std::string, float>groupByVarCharAttrMinValue;
-    std::unordered_map<std::string, float>groupByVarCharAttrMaxValue;
-    std::unordered_map<std::string, float>groupByVarCharAttrValueSum;
-    std::unordered_map<std::string, float>groupByVarCharAttrValueAvg;
-    std::unordered_map<unsigned , unsigned> groupByIntAttrTotalCount;
-    std::unordered_map<unsigned, float>groupByIntAttrMinValue;
-    std::unordered_map<unsigned, float>groupByIntAttrMaxValue;
-    std::unordered_map<unsigned, float>groupByIntAttrValueSum;
-    std::unordered_map<unsigned, float>groupByIntAttrValueAvg;
-    std::unordered_map<unsigned, unsigned> groupByRealAttrTotalCount;
-    std::unordered_map<unsigned, float>groupByRealAttrMinValue;
-    std::unordered_map<unsigned, float>groupByRealAttrMaxValue;
-    std::unordered_map<unsigned, float>groupByRealAttrValueSum;
-    std::unordered_map<unsigned, float>groupByRealAttrValueAvg;
-
-    Project *proj;
+    int outputIndex = 0;
+    std::vector<std::string> groups;
+    std::vector<std::vector<float>> aggregations;
 
     Attribute groupAttr;
 
