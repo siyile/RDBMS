@@ -44,7 +44,7 @@ file(GLOB files qe/qetest_*.cc)
 foreach (file ${files})
     get_filename_component(name ${file} NAME_WE)
     add_executable(${name} ${file})
-    target_link_libraries(${name} QE IX RM RBFM PFM)
+    target_link_libraries(${name} QE RM IX RBFM PFM)
 endforeach ()
 
 file(GLOB files cli/cli_example_*.cc)

@@ -228,7 +228,7 @@ public:
 
     static void readAttributeFromRawData(const void *data, void *returnData, std::vector<Attribute> attrs, const std::string& attrName, int index);
 
-    static int getAttrIndex(const std::vector<Attribute> attrs, const std::string& attrName);
+    static int getAttrIndex(const std::vector<Attribute>& attrs, const std::string& attrName);
 
 protected:
     RecordBasedFileManager();                                                   // Prevent construction

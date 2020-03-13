@@ -15,9 +15,11 @@ Filter::Filter(Iterator *input, Condition &condition) {
     this->targetAttrName = condition.lhsAttr;
     input->getAttributes(this->relAttrs);
     this->input = input;
+    op = condition.op;
+    rhsValue = condition.rhsValue;
+    targetAttrIndex = RecordBasedFileManager::getAttrIndex(relAttrs, targetAttrName);
 
-    //get tableName from relation
-    //input->getTableNameFromRelAttr(this->tableName, relAttrs);
+    currentTuple = malloc(PAGE_SIZE);
 
     for (const Attribute& attr : relAttrs) {
         if (attr.name == targetAttrName) {
@@ -28,12 +30,16 @@ Filter::Filter(Iterator *input, Condition &condition) {
 }
 
 RC Filter::getNextTuple(void *data) {
-    if (input->getNextTuple(currentTuple) == QE_EOF) {
-        return QE_EOF;
+    while (rc != QE_EOF) {
+        rc = input->getNextTuple(currentTuple);
+        // break when satisfied tuple
+        if (rc == QE_EOF || isTupleSatisfied()) {
+            break;
+        }
     }
 
-    while (!isTupleSatisfied()) {
-        getNextTuple(data);
+    if (rc == QE_EOF) {
+        return QE_EOF;
     }
 
     memcpy(data, currentTuple, Iterator::getTupleLength(relAttrs, currentTuple));
@@ -42,35 +48,32 @@ RC Filter::getNextTuple(void *data) {
 }
 
 bool Filter::isTupleSatisfied() {
-
-    unsigned short size = relAttrs.size();
-    unsigned short pos = 0;
-
-    int *attrsExist = new int[size];
-
-    RecordBasedFileManager::getAttrExistArray(pos, attrsExist, currentTuple, size, false);
-
     // get data from tuple
     void* data = malloc(PAGE_SIZE);
-    unsigned short _;
-    getLengthAndDataFromTuple(currentTuple, relAttrs, "", targetAttrIndex, _, data);
+    RecordBasedFileManager::readAttributeFromRawData(currentTuple, data, relAttrs, "", targetAttrIndex);
 
     bool res = RecordBasedFileManager::compareValue(rhsValue.data, data, op, targetAttribute.type);
 
+    free(data);
     return res;
 }
 
 void Filter::getAttributes(std::vector<Attribute> &attrs) const {
     for (auto const & it : relAttrs) {
-        auto attr = it;
-        attr.name = "filter." + it.name;
-        attrs.push_back(attr);
+        attrs.push_back(it);
     }
+}
+
+Filter::~Filter() {
+    free(currentTuple);
 }
 
 
 Project::Project(Iterator *input, const std::vector<std::string> &attrNames) {
     input->getAttributes(this->relAttrs);
+    currentTuple = malloc(PAGE_SIZE);
+
+    this->targetAttributesNames.insert(targetAttributesNames.begin(), attrNames.begin(), attrNames.end());
 
     this->input = input;
     for (int i = 0; i < relAttrs.size(); i++) {
@@ -82,8 +85,6 @@ Project::Project(Iterator *input, const std::vector<std::string> &attrNames) {
             }
         }
     }
-    //this->targetAttributesNames = attrNames;
-    this->targetAttributesNames.insert(targetAttributesNames.begin(), attrNames.begin(), attrNames.end());
 
     for (int i = 0; i < attrNames.size(); i++) {
         int tupleIndex = targetIndexToTupleIndexMap[i];
@@ -91,7 +92,15 @@ Project::Project(Iterator *input, const std::vector<std::string> &attrNames) {
     }
 }
 
+Project::~Project() {
+    free(currentTuple);
+}
+
 RC Project::getNextTuple(void *data) {
+    int rc = input->getNextTuple(currentTuple);
+    if (rc == QE_EOF) {
+        return QE_EOF;
+    }
 
     unsigned short size = relAttrs.size();
     unsigned short pos = 0;
@@ -129,7 +138,7 @@ RC Project::getNextTuple(void *data) {
         if (attrsExist[tupleIndex] != 1) {
             continue;
         } else {
-            offset = tupleIndexToOffsetMap[i];
+            offset = tupleIndexToOffsetMap[tupleIndex];
             if (relAttrs[tupleIndex].type != TypeVarChar) {
                 memcpy((char*)data + dataPos, (char*)currentTuple + offset, UNSIGNED_SIZE);
                 dataPos += UNSIGNED_SIZE;
@@ -142,15 +151,13 @@ RC Project::getNextTuple(void *data) {
         }
         RecordBasedFileManager::setNullIndicator(nullIndicator, i, 0);
     }
-    memcpy(data,nullIndicator, nullIndicatorSize);
+    memcpy(data, nullIndicator, nullIndicatorSize);
     return 0;
 }
 
 void Project::getAttributes(std::vector<Attribute> &attrs) const {
     for (auto const & it : targetAttributes) {
-        auto attr = it;
-        attr.name = "project." + it.name;
-        attrs.push_back(attr);
+        attrs.push_back(it);
     }
 }
 
@@ -187,13 +194,15 @@ void Iterator::concatenateTuple(void *data, void *left, void *right, std::vector
     int lSize = leftAttrs.size();
     int rSize = rightAttrs.size();
 
+    int leftNullIndicatorSize = (lSize + 7) / 8;
+    int rightNullIndicatorSize = (rSize + 7) / 8;
+
     int nullIndicatorSize = (lSize + rSize + 7) / 8;
 
     // copy left null indicator
-    memcpy(data, left, lSize);
+    memcpy(data, left, leftNullIndicatorSize);
 
     // continue copy indicator
-    unsigned char byte;
     int l = lSize;
 
     for (int r = 0; r < rSize; r++, l++) {
@@ -201,11 +210,11 @@ void Iterator::concatenateTuple(void *data, void *left, void *right, std::vector
     }
 
     unsigned pos = nullIndicatorSize;
-    unsigned leftLength = getTupleLength(leftAttrs, left) - (lSize + 7) / 8;
-    memcpy((char *) data + pos, (char *) left + lSize / 8, leftLength);
+    unsigned leftLength = getTupleLength(leftAttrs, left) - leftNullIndicatorSize;
+    memcpy((char *) data + pos, (char *) left + leftNullIndicatorSize, leftLength);
     pos += leftLength;
-    unsigned rightLength = getTupleLength(rightAttrs, right) - (rSize + 7) / 8;
-    memcpy((char *) data + pos, (char *) right + rSize / 8, rightLength);
+    unsigned rightLength = getTupleLength(rightAttrs, right) - rightNullIndicatorSize;
+    memcpy((char *) data + pos, (char *) right + rightNullIndicatorSize, rightLength);
 }
 
 /*
@@ -223,6 +232,8 @@ void Iterator::concatenateTuple(void *data, void *left, void *right, std::vector
  *
  * */
 BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned numPages) {
+    rbfm = &RecordBasedFileManager::instance();
+
     memoryLimit = (numPages - 2) * PAGE_SIZE;
     currentMemory = 0;
 
@@ -252,7 +263,8 @@ RC BNLJoin::getNextTuple(void *data) {
     void* key = malloc(PAGE_SIZE);
     // outBuffer is empty, need to get something in it.
     // when lrc == rrc == QE_EOF, we end
-    while (outBuffer.empty() && lrc != QE_EOF && rrc != QE_EOF) {
+    bool foundRight = false;
+    while (!foundRight && outBuffer.empty() && (lrc != QE_EOF || rrc != QE_EOF)) {
         // if current memory is 0, need to start scan to fill input buffer
         if (currentMemory == 0) {
             while (currentMemory + leftAttrsEstLength <= memoryLimit) {
@@ -298,7 +310,6 @@ RC BNLJoin::getNextTuple(void *data) {
             }
         }
 
-        bool foundRight = false;
         // search in tableScan
         while (!foundRight) {
             rrc = rightIt->getNextTuple(tuple1);
@@ -363,15 +374,11 @@ RC BNLJoin::getNextTuple(void *data) {
 
 void BNLJoin::getAttributes(std::vector<Attribute> &attrs) const {
     for (auto const & it : leftAttrs) {
-        auto attr = it;
-        attr.name = "join." + it.name;
-        attrs.push_back(attr);
+        attrs.push_back(it);
     }
 
     for (auto const & it : rightAttrs) {
-        auto attr = it;
-        attr.name = "join." + it.name;
-        attrs.push_back(attr);
+        attrs.push_back(it);
     }
 }
 
@@ -386,7 +393,7 @@ void Iterator::getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> con
                                          unsigned index, unsigned short &length, void *data) {
     length = 0;
     int *attrsExist = new int[attrs.size()];
-    RecordBasedFileManager::getAttrExistArray(length, attrsExist, data, attrs.size(), false);
+    RecordBasedFileManager::getAttrExistArray(length, attrsExist, tuple, attrs.size(), false);
     for (int i = 0; i < attrs.size(); i++) {
         if (i == index || (i == -1 && attrName == attrs[i].name)) {
             if (attrsExist[i] == 0) {
@@ -401,7 +408,6 @@ void Iterator::getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> con
             }
         }
         if (attrsExist[i]) {
-
             if (attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
                 length += UNSIGNED_SIZE;
             } else {
@@ -417,6 +423,8 @@ void Iterator::getLengthAndDataFromTuple(void *tuple, std::vector<Attribute> con
 }
 
 INLJoin::INLJoin(Iterator *leftIn, IndexScan *rightIn, const Condition &condition) {
+    rbfm = &RecordBasedFileManager::instance();
+
     leftIt = leftIn;
     rightIt = rightIn;
     this->condition = condition;
@@ -436,12 +444,15 @@ INLJoin::INLJoin(Iterator *leftIn, IndexScan *rightIn, const Condition &conditio
 RC INLJoin::getNextTuple(void *data) {
     void* key = malloc(PAGE_SIZE);
     void* tuple1 = malloc(PAGE_SIZE);
-    while (lrc != QE_EOF && rrc != QE_EOF) {
+    while (lrc != QE_EOF || rrc != QE_EOF) {
         // if rightIt is over, leftIt get next, restart rightIt scan
         if (rrc == QE_EOF) {
             // leftIt get Next
             unsigned short _;
             lrc = leftIt->getNextTuple(tuple);
+            if (lrc == QE_EOF) {
+                break;
+            }
             getLengthAndDataFromTuple(tuple, leftAttrs, "", leftAttrsIndex, _, key);
 
             //reset rightIt
@@ -469,16 +480,13 @@ RC INLJoin::getNextTuple(void *data) {
 
 void INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
     for (auto const & it : leftAttrs) {
-        auto attr = it;
-        attr.name = "join." + it.name;
-        attrs.push_back(attr);
+        attrs.push_back(it);
     }
 
     for (auto const & it : rightAttrs) {
-        auto attr = it;
-        attr.name = "join." + it.name;
-        attrs.push_back(attr);
+        attrs.push_back(it);
     }
+
 }
 
 Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, AggregateOp op) {
