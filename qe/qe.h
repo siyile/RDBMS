@@ -209,7 +209,6 @@ class Project : public Iterator {
 public:
     std::vector<Attribute> relAttrs;
     std::unordered_map<std::string, Attribute> attrNameToAttrMap;
-    //std::unordered_map<unsigned , Attribute> PositionToAttrMap;
     std::unordered_map<int, int> targetIndexToTupleIndexMap;
     std::unordered_map<int, int> tupleIndexToOffsetMap;
     std::vector<std::string> targetAttributesNames;
@@ -353,6 +352,8 @@ public:
     float valueSum;
     float valueAvg;
 
+    void *currentTuple;
+
     std::unordered_set<std::string> groupByVarCharAttrValue;
     std::unordered_set<unsigned > groupByIntAttrValue;
     std::unordered_set<unsigned > groupByRealAttrValue;
@@ -373,6 +374,7 @@ public:
     std::unordered_map<unsigned, float>groupByRealAttrMaxValue;
     std::unordered_map<unsigned, float>groupByRealAttrValueSum;
     std::unordered_map<unsigned, float>groupByRealAttrValueAvg;
+
     Project *proj;
 
     Attribute groupAttr;
@@ -383,16 +385,7 @@ public:
               const Attribute &aggAttr,           // The attribute over which we are computing an aggregate
               const Attribute &groupAttr,         // The attribute over which we are grouping the tuples
               AggregateOp op              // Aggregate operation
-    ) {
-        this->groupAttr = groupAttr;
-        this->aggAttr =aggAttr;
-        this->op = op;
-        this->input = input;
-        this->maxValue = MIN_FLOAT;
-        this->minValue = MAX_FLOAT;
-        this->totalCount = 0;
-        this->aggAttrVector.push_back(aggAttr.name);
-    };
+    );
 
     ~Aggregate() = default;
 
