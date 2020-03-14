@@ -26,6 +26,11 @@ RelationManager::RelationManager() {
     appendAttr(columnAttr, "column-length", TypeInt, 4);
     appendAttr(columnAttr, "column-position", TypeInt, 4);
 
+    appendAttr(indexAttr, "table-name", TypeVarChar, 50);
+    appendAttr(indexAttr, "attr-name", TypeVarChar, 50);
+    appendAttr(indexAttr, "attr-index", TypeInt, 4);
+    appendAttr(indexAttr, "file-name", TypeVarChar, 50);
+
     tableNameToAttrMap[TABLES_NAME] = tableAttr;
     tableNameToAttrMap[COLUMNS_NAME] = columnAttr;
 
@@ -40,35 +45,43 @@ RelationManager::RelationManager() {
         columnAttributeNames.push_back(attr.name);
     }
 
+    for (const auto & it : indexAttr) {
+        indexAttrNames.push_back(it.name);
+    }
+
     if (PagedFileManager::exists_test(TABLES_FILE_NAME)) {
         // read physical file into memory hashmap
         initScanTablesOrColumns(true);
         initScanTablesOrColumns(false);
         
         // scan all index file
-        for (const auto & it : tableNameToAttrMap) {
-            for (int i = 0; i < it.second.size(); i++) {
-                Attribute attr = it.second[i];
-                const std::string & tableName = it.first;
-                std::string indexNameHash = getIndexNameHash(tableName, attr.name);
-                std::string fileName = indexNameHash + IDX_EXT;
-                if (PagedFileManager::exists_test(fileName)) {
-                    tNANToIndexFile[indexNameHash] = fileName;
-                    if (indexMap.find(tableName) == indexMap.end()) {
-                        std::unordered_set<int> set = {};
-                        indexMap[tableName] = set;
-                    }
-                    indexMap[tableName].insert(i);
-                }
-            }
-        }
+        initScanIndex();
     } else {
         // do nothing
     }
 
 }
 
-RelationManager::~RelationManager() = default;
+RelationManager::~RelationManager() {
+    // destroy index file, write index tuple into new file
+    rbfm->destroyFile(INDEX_FILE_NAME);
+    rbfm->createFile(INDEX_FILE_NAME);
+    FileHandle fileHandle;
+    rbfm->openFile(INDEX_FILE_NAME, fileHandle);
+    void * data = malloc(PAGE_SIZE);
+    for (const auto & it : indexMap) {
+        std::string tableName = it.first;
+        for (const auto & it1 : it.second) {
+            std::string attrName = tableNameToAttrMap[tableName][it1].name;
+            std::string fileName = tNANToIndexFile[getIndexNameHash(tableName, attrName)];
+            generateIndexData(data, tableName, attrName, it1, fileName);
+            RID rid;
+            rbfm->insertRecord(fileHandle, indexAttr, data, rid);
+        }
+    }
+    free(data);
+    rbfm->closeFile(fileHandle);
+}
 
 RelationManager::RelationManager(const RelationManager &) = default;
 
@@ -98,6 +111,8 @@ RC RelationManager::createCatalog() {
 
     createTable(TABLES_NAME, tableAttr, true);
     createTable(COLUMNS_NAME, columnAttr, true);
+
+    createTable(INDEX_NAME, indexAttr, true);
 
     return 0;
 }
@@ -511,6 +526,37 @@ void RelationManager::generateColumnsData(unsigned id, Attribute attr, unsigned 
     memcpy((char *) data + pos, &position, UNSIGNED_SIZE);
 }
 
+void RelationManager::generateIndexData(void *data, const std::string &tableName, const std::string &attrName,
+                                        const int index, const std::string &fileName) {
+    unsigned length;
+    unsigned char nullIndicator = 0x00;
+    int pos = 0;
+
+    memcpy(data, &nullIndicator, NULL_INDICATOR_UNIT_SIZE);
+    pos += NULL_INDICATOR_UNIT_SIZE;
+
+    length = tableName.size();
+    memcpy((char *) data + pos, &length, UNSIGNED_SIZE);
+    pos += (int) UNSIGNED_SIZE;
+    memcpy((char *) data + pos, tableName.c_str(), length);
+    pos += (int) length;
+
+    length = attrName.size();
+    memcpy((char *) data + pos, &length, UNSIGNED_SIZE);
+    pos += (int) UNSIGNED_SIZE;
+    memcpy((char *) data + pos, attrName.c_str(), length);
+    pos += (int) length;
+
+    memcpy((char *) data + pos, &index, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    length = fileName.size();
+    memcpy((char *) data + pos, &length, UNSIGNED_SIZE);
+    pos += (int) UNSIGNED_SIZE;
+    memcpy((char *) data + pos, fileName.c_str(), length);
+    pos += (int) length;
+}
+
 void RelationManager::initScanTablesOrColumns(bool isTables) {
     RM_ScanIterator rmsi;
 
@@ -581,6 +627,30 @@ void RelationManager::initScanTablesOrColumns(bool isTables) {
     free(data);
 }
 
+void RelationManager::initScanIndex() {
+    RM_ScanIterator rmsi;
+    FileHandle fileHandle;
+    rbfm->openFile(INDEX_FILE_NAME, fileHandle);
+    scan(INDEX_NAME, "", NO_OP, nullptr, indexAttrNames, rmsi);
+
+    RID rid;
+    void *data = malloc(PAGE_SIZE);
+    while (rmsi.getNextTuple(rid, data) != RBFM_EOF) {
+        std::string tableName, attrName, fileName;
+        int index;
+        parseIndexData(data, tableName, attrName, index, fileName);
+        tNANToIndexFile[getIndexNameHash(tableName, attrName)] = fileName;
+
+        if (indexMap.find(tableName) == indexMap.end()) {
+            std::unordered_set<int> set {};
+            indexMap[tableName] = set;
+        }
+        indexMap[tableName].insert(index);
+    }
+    free(data);
+    rmsi.close();
+}
+
 // convert data to table related hashmap
 void RelationManager::parseTablesData(void *data, std::string &tableName, std::string &fileName, unsigned int &id,
                                       bool &isSystemTable) {
@@ -638,6 +708,29 @@ void RelationManager::parseColumnsData(void *data, unsigned int &id, Attribute &
 
     //get position from corresponding position
     memcpy((char *) &position, (char *) data + pos, UNSIGNED_SIZE);
+}
+
+void RelationManager::parseIndexData(void *data, std::string &tableName, std::string &attrName, int &index,
+                                     std::string &fileName) {
+    int pos = NULL_INDICATOR_UNIT_SIZE;
+    unsigned length;
+
+    memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+    tableName.assign((char *) data + pos, length);
+    pos += (int) length;
+
+    memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+    attrName.assign((char *) data + pos, length);
+    pos += (int) length;
+
+    memcpy(&index, (char *) data + pos, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+
+    memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
+    pos += UNSIGNED_SIZE;
+    fileName.assign((char *) data + pos, length);
 }
 
 // totally using rbfm::scan
@@ -782,6 +875,8 @@ RC RelationManager::indexScan(const std::string &tableName,
 std::string RelationManager::getIndexNameHash(const std::string& tableName, const std::string& attrName) {
     return tableName + '_' + attrName;
 }
+
+
 
 RC  RM_IndexScanIterator::getNextEntry(RID &rid, void *key) {
     return ixsi.getNextEntry(rid, key);

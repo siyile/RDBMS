@@ -12,8 +12,10 @@
 
 # define TABLES_FILE_NAME "Tables.tbl"
 # define COLUMNS_FILE_NAME "Columns.tbl"
+# define INDEX_FILE_NAME "Index.tbl"
 # define TABLES_NAME "Tables"
 # define COLUMNS_NAME "Columns"
+# define INDEX_NAME "Index"
 # define EXT ".tbl"
 # define IDX_EXT ".idx"
 # define SM_BLOCK 500
@@ -68,9 +70,11 @@ public:
 
     std::vector<Attribute> tableAttr;
     std::vector<Attribute> columnAttr;
+    std::vector<Attribute> indexAttr;
     
     std::vector<std::string> tableAttributeNames;
     std::vector<std::string> columnAttributeNames;
+    std::vector<std::string> indexAttrNames;
 
 
     // tableName -> fileName
@@ -139,12 +143,19 @@ public:
 
     static void generateColumnsData(unsigned id, Attribute attr, unsigned position, void *data);
 
+    static void generateIndexData(void* data, const std::string & tableName, const std::string & attrName, const int index, const std::string & fileName);
+
     void initScanTablesOrColumns(bool isTables);
+
+    void initScanIndex();
 
     static void parseTablesData(void *data, std::string &tableName, std::string &fileName, unsigned int &id,
                          bool &isSystemTable);
 
     static void parseColumnsData(void *data, unsigned int &id, Attribute &attr, unsigned &position);
+
+    static void
+    parseIndexData(void *data, std::string &tableName, std::string &attrName, int &index, std::string &fileName);
 
     // Extra credit work (10 points)
     RC addAttribute(const std::string &tableName, const Attribute &attr);
