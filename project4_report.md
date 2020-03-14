@@ -31,9 +31,9 @@ We scan the index file at the RM construction function. Write back to memory at 
 ## 5. Grace Hash Join (If you have implemented this feature)
 ##### Describe how your grace hash join works (especially, in-memory structure).
     
-1.allocate both left-hand tuples and right-hand tuples into multiple partitions according to the remainder of key/numPartitions
-2.For hashMap, we decide to transfer both TypeInt and TypeReal key into int type. No matter what the value is, same 
-value will definitely match to reach other. For Varchar, using the std::hash to get hash.
+1. allocate both left-hand tuples and right-hand tuples into multiple partitions according to the remainder of key/numPartitions
+2. For hashMap, we decide to transfer both TypeInt and TypeReal key into int type. No matter what the value is, same 
+value will definitely match to reach other. For Varchar, using the std::hash to get hash. 
 3. Do what we do like the BNLJ. If we find a match in corresponding right partition, then concatenate this two tuples together and put the new tuple 
 into output buffer.
     

@@ -64,19 +64,19 @@ RelationManager::RelationManager() {
 
 RelationManager::~RelationManager() {
     // destroy index file, write index tuple into new file
-    rbfm->destroyFile(INDEX_NAME);
-    rbfm->createFile(INDEX_NAME);
+    rbfm->destroyFile(INDEX_FILE_NAME);
+    rbfm->createFile(INDEX_FILE_NAME);
     FileHandle fileHandle;
-    rbfm->openFile(INDEX_NAME, fileHandle);
+    rbfm->openFile(INDEX_FILE_NAME, fileHandle);
     void * data = malloc(PAGE_SIZE);
     for (const auto & it : indexMap) {
         std::string tableName = it.first;
         for (const auto & it1 : it.second) {
             std::string attrName = tableNameToAttrMap[tableName][it1].name;
-            std::string fileName = tNANToIndexFile[getIndexNameHash(attrName, fileName)];
+            std::string fileName = tNANToIndexFile[getIndexNameHash(tableName, attrName)];
             generateIndexData(data, tableName, attrName, it1, fileName);
             RID rid;
-            rbfm->insertRecord(fileHandle, tableNameToAttrMap[tableName], data, rid);
+            rbfm->insertRecord(fileHandle, indexAttr, data, rid);
         }
     }
     free(data);
@@ -629,6 +629,8 @@ void RelationManager::initScanTablesOrColumns(bool isTables) {
 
 void RelationManager::initScanIndex() {
     RM_ScanIterator rmsi;
+    FileHandle fileHandle;
+    rbfm->openFile(INDEX_FILE_NAME, fileHandle);
     scan(INDEX_NAME, "", NO_OP, nullptr, indexAttrNames, rmsi);
 
     RID rid;
@@ -721,7 +723,7 @@ void RelationManager::parseIndexData(void *data, std::string &tableName, std::st
     memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
     attrName.assign((char *) data + pos, length);
-    pos += UNSIGNED_SIZE;
+    pos += (int) length;
 
     memcpy(&index, (char *) data + pos, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
@@ -729,7 +731,6 @@ void RelationManager::parseIndexData(void *data, std::string &tableName, std::st
     memcpy(&length, (char *) data + pos, UNSIGNED_SIZE);
     pos += UNSIGNED_SIZE;
     fileName.assign((char *) data + pos, length);
-    pos += UNSIGNED_SIZE;
 }
 
 // totally using rbfm::scan

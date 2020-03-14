@@ -12,6 +12,7 @@
 
 # define TABLES_FILE_NAME "Tables.tbl"
 # define COLUMNS_FILE_NAME "Columns.tbl"
+# define INDEX_FILE_NAME "Index.tbl"
 # define TABLES_NAME "Tables"
 # define COLUMNS_NAME "Columns"
 # define INDEX_NAME "Index"
